@@ -1,0 +1,33 @@
+{
+  "name": "mon-ent-occitanie-desktop",
+  "version": "1.0.0",
+  "description": "Une application permettant de se connecter automatiquement à mon ent occitanie",
+  "main": "index.js",
+  "scripts": {
+    "start": "electron .",
+    "package-win": "electron-packager . mon-ent-occitanie-desktop --platform=win32 --arch=x64 --out=dist --overwrite --icon=assets/icons/icon.ico",
+    "package-linux": "electron-packager . mon-ent-occitanie-desktop --platform=linux --arch=x64 --out=dist --overwrite --icon=assets/icons/icon.png",
+    "package-mac": "electron-packager . mon-ent-occitanie-desktop --platform=darwin --arch=x64 --out=dist --overwrite --icon=assets/icons/icon.icns",
+    "package-all": "electron-packager . mon-ent-occitanie-desktop --platform=win32,darwin,linux --arch=x64 --out=dist --overwrite --icon=assets/icons/icon"
+  },
+  "keywords": [],
+  "author": "Mathr81",
+  "license": "MIT",
+  "dependencies": {
+    "@types/node": "^18.0.6",
+    "electron": "^30.0.8",
+    "puppeteer-core": "^22.10.0",
+    "puppeteer-in-electron": "^3.0.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mathr81/mon-ent-occitanie-desktop.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Mathr81/mon-ent-occitanie-desktop/issues"
+  },
+  "homepage": "https://github.com/Mathr81/mon-ent-occitanie-desktop#readme",
+  "devDependencies": {
+    "electron-packager": "^17.1.2"
+  }
+}
