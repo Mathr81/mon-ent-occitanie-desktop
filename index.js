@@ -12,53 +12,21 @@ const main = async () => {
 
   const window = new BrowserWindow();
   Menu.setApplicationMenu(null);
-  const url =
-    "https://cas.mon-ent-occitanie.fr/login?service=https%3A%2F%2Fles-portanelles-lautrec.mon-ent-occitanie.fr%2Fsg.do%3FPROC%3DPAGE_ACCUEIL";
+  const url = "https://www.ecoledirecte.com/login?cameFrom=%2FAccueil";
   await window.loadURL(url);
 
   const page = await pie.getPage(browser, window);
 
-  const buttonSelector =
-    "button.btn.btn--naked.js-wayftoggle.btn--lg.btn--as-link.btn--full";
-  await page.waitForSelector(buttonSelector);
-  const isExpanded = await page.$eval(
-    buttonSelector,
-    (button) => button.getAttribute("aria-expanded") === "true",
-  );
-  if (!isExpanded) {
-    await page.click(buttonSelector);
-  }
+  await page.type("#username", "matheo.barthes"); // Remplacez 'votre_identifiant' par votre identifiant réel
+  await page.type("#password", "M@th5o122009"); // Remplacez 'votre_mot_de_passe' par votre mot de passe réel
 
-  await page.click("#idp-TOULO-EDU_parent_eleve");
-  await page.click("#button-submit");
-
-  await page.waitForNavigation();
-
-  const eleveButtonSelector = "#bouton_eleve";
-  const eleveButton = await page.$(eleveButtonSelector);
-  if (eleveButton) {
-    await eleveButton.click();
-  }
-
-  await page.type("#username", "********"); // Remplacez 'votre_identifiant' par votre identifiant réel
-  await page.type("#password", "********"); // Remplacez 'votre_mot_de_passe' par votre mot de passe réel
-
-  await page.click("#bouton_valider");
+  await page.click("#connexion");
 
   await page.waitForNavigation();
 
   console.log("Connexion réussie");
 
-  await sleep(3000);
-
-  const acceptButtonSelector = "#tarteaucitronPersonalize2";
-  const acceptButton = await page.$(acceptButtonSelector);
-  if (acceptButton) {
-    await acceptButton.click();
-    console.log('Bouton "Tout accepter" cliqué');
-  } else {
-    console.log('Le bouton "Tout accepter" n\'a pas été trouvé');
-  }
+  await sleep(500);
 
   // Déconnecter Puppeteer du navigateur
   //await browser.disconnect();

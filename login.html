@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Connexion</title>
+
+  <!-- Import Tailwind CSS depuis un CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    /* Ajout d'une transition pour l'affichage/masquage du mot de passe */
+    .toggle-visibility {
+      transition: all 0.3s ease;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+
+  <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+    <h2 class="text-2xl font-bold text-gray-800 mb-4 text-center">Connexion à Ecole Directe</h2>
+
+    <!-- Texte d'explication -->
+    <p class="text-gray-600 text-center mb-6">
+      Veuillez vous connecter pour la première fois. Vos identifiants seront enregistrés pour les connexions futures.
+    </p>
+
+    <!-- Formulaire de connexion -->
+    <form id="login-form" class="space-y-4">
+      <!-- Identifiant -->
+      <div>
+        <label for="username" class="block text-sm font-medium text-gray-700">Identifiant :</label>
+        <input type="text" id="username" name="username" required class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring focus:ring-indigo-200">
+      </div>
+
+      <!-- Mot de passe avec bouton pour masquer/afficher -->
+      <div>
+        <label for="password" class="block text-sm font-medium text-gray-700">Mot de passe :</label>
+        <div class="relative">
+          <input type="password" id="password" name="password" required class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring focus:ring-indigo-200 toggle-visibility">
+          <button type="button" id="toggle-password" class="absolute inset-y-0 right-0 px-3 py-2 text-sm text-gray-600 focus:outline-none">Afficher</button>
+        </div>
+      </div>
+
+      <!-- Bouton de connexion -->
+      <button type="submit" class="w-full bg-indigo-600 text-white font-semibold py-2 rounded-lg shadow-lg hover:bg-indigo-500 transition duration-300">Se connecter</button>
+    </form>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    // Gestion de la soumission du formulaire
+    document.getElementById('login-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+
+      // Envoyer les identifiants au processus principal
+      ipcRenderer.send('submit-credentials', { username, password });
+    });
+
+    // Fonctionnalité pour afficher/masquer le mot de passe
+    const passwordField = document.getElementById('password');
+    const togglePasswordButton = document.getElementById('toggle-password');
+
+    togglePasswordButton.addEventListener('click', () => {
+      if (passwordField.type === 'password') {
+        passwordField.type = 'text';
+        togglePasswordButton.textContent = 'Masquer';
+      } else {
+        passwordField.type = 'password';
+        togglePasswordButton.textContent = 'Afficher';
+      }
+    });
+  </script>
+
+</body>
+</html>
