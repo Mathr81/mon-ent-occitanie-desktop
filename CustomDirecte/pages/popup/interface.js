@@ -1,8 +1,8 @@
 /* IMPORT CHROME LIB */
 browser = chrome;
-browserStorage = browser.storage.sync;
+browserStorage = browser.storage.local;
 browserVersion = browser.runtime.getManifest().version_name;
-browserStorageOnChanged = browser.storage.sync.onChanged;
+browserStorageOnChanged = browser.storage.local.onChanged;
 scrollIntoView = (ele) => {
   ele.scrollIntoViewIfNeeded();
 };
