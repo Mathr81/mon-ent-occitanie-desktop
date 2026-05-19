@@ -1,14 +1,16 @@
 {
   "name": "ecole-directe-desktop",
   "productName": "Mon EcoleDirecte",
-  "version": "1.4.6",
+  "version": "1.4.7",
   "description": "Une application permettant de se connecter automatiquement à école directe",
   "main": "index.js",
   "scripts": {
     "start": "cross-env NODE_ENV=development electron .",
+    "patch": "node scripts/patch-extension.js",
+    "prestart": "npm run patch",
     "build": "electron-builder",
     "build:publish": "electron-builder --publish always",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps && npm run patch"
   },
   "keywords": [],
   "author": "Mathr81",

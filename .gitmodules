@@ -1,0 +1,3 @@
+[submodule "CustomDirecte"]
+	path = CustomDirecte
+	url = https://github.com/CustomDirecte/CustomDirecte

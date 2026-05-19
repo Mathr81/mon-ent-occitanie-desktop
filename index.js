@@ -71,7 +71,7 @@ console.error = (...args) => {
 
 function getCustomExtensionPath() {
   if (process.env.NODE_ENV === "development") {
-    return path.join(__dirname, "CustomDirecte");
+    return path.join(__dirname, "CustomDirecte", "src");
   }
 
   // Remonter depuis app.asar jusqu'à trouver CustomDirecte (robuste
@@ -79,7 +79,7 @@ function getCustomExtensionPath() {
   let dir = path.dirname(app.getAppPath()); // resources/
   for (let i = 0; i < 4; i++) {
     dir = path.dirname(dir);
-    const candidate = path.join(dir, "CustomDirecte");
+    const candidate = path.join(dir, "CustomDirecte", "src");
     if (fs.existsSync(candidate)) {
       console.log("Extension trouvée :", candidate);
       return candidate;
@@ -89,7 +89,8 @@ function getCustomExtensionPath() {
   // Fallback ultime
   const fallback = path.join(
     path.dirname(path.dirname(app.getAppPath())),
-    "CustomDirecte"
+    "CustomDirecte",
+    "src"
   );
   console.error("CustomDirecte introuvable, fallback :", fallback);
   return fallback;
@@ -333,7 +334,7 @@ async function main() {
         if (BrowserWindow.addExtension) {
           BrowserWindow.addExtension(extensionPath);
         } else {
-          await session.defaultSession.loadExtension(extensionPath);
+          session.defaultSession.extensions.loadExtension(extensionPath);
         }
         console.log("Extension chargée !");
       } catch (err) {
