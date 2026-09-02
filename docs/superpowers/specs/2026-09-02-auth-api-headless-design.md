@@ -51,10 +51,19 @@ le passe à un constructeur qui recopie les champs sans les renommer.
 Les clés 2FA vivent dans `localStorage["fa"]` sous la forme
 `[{ cn, cv, uniq }]` (10 entrées max, FIFO), doublées en cookies.
 
-**Piège écarté :** la page expose aussi `sessionStorage["edcommonhydration_auth"]`.
-Ce n'est **pas** l'authentification — c'est l'hydratation d'un feature-state
-NgRx `{ datas, selectedAnneeScolaire, selectedEntityUser, selectedVariant }`,
-préfixé par `` edcommonhydration_${nom} ``. On n'y touche pas.
+#### Piège identifié — `edcommonhydration_auth`
+
+La page expose aussi `sessionStorage["edcommonhydration_auth"]`, qui vaut
+`{"payload":{}}` hors session. Le nom et l'enveloppe `{ payload }` en font un
+sosie convaincant des clés d'authentification.
+
+**Ce n'en est pas une.** C'est l'hydratation d'un feature-state NgRx de forme
+`{ datas, selectedAnneeScolaire, selectedEntityUser, selectedVariant }`, écrit
+par un helper distinct qui préfixe toutes ses clés par
+`` edcommonhydration_${nom} `` (`Yx = s => \`edcommonhydration_${s}\`` dans
+`chunk-P3PJOCOI.js`). Il ne porte ni token ni compte.
+
+On n'y touche pas, et on ne le confond pas avec `credentials` / `accounts`.
 
 ### Flux de login
 
@@ -137,7 +146,8 @@ src/
 scripts/
   patch-extension.js
   diag-auth.js
-build/                        sortie du patch d'extension — gitignoré
+.cache/
+  extension/                  sortie du patch d'extension — déjà gitignoré
 ```
 
 `package.json` : `main` → `src/main/index.js`.
@@ -219,42 +229,100 @@ L'application n'est jamais bloquée par un échec d'injection.
 
 `scripts/patch-extension.js` écrit aujourd'hui **dans le submodule**
 (`CustomDirecte/src`), ce qui le laisse durablement sale et fera échouer ses
-futures mises à jour. Il doit copier `CustomDirecte/src` vers
-`build/extension/` puis patcher **la copie**. Le submodule devient
-read-only.
+futures mises à jour. Il doit copier `CustomDirecte/src` vers une sortie
+dédiée puis patcher **la copie**. Le submodule devient read-only.
 
-Points de vérification obligatoires — c'est le piège classique de ce
-déplacement :
+### Choix du chemin de sortie : `.cache/extension/`
 
-1. **`.gitignore`** ne contient que `build/Release`, pas `build/`. Il faut
-   ajouter `build/`.
-2. **`electron-builder.yml` — `extraFiles`** pointe sur `CustomDirecte`. À
-   basculer sur `from: build/extension` / `to: CustomDirecte`, ce qui garde le
-   chemin d'exécution inchangé. L'extension doit rester hors de l'asar :
-   Chromium ne charge pas une extension depuis une archive asar.
-3. **`asarUnpack: [CustomDirecte]`** devient sans objet — à retirer.
-4. **Ordre d'exécution.** Le patch tourne aujourd'hui en `postinstall` et
-   `prestart`. La CI enchaîne `pnpm install` puis `pnpm run build` : le
-   postinstall couvre le cas, mais un script `prebuild` explicite doit être
-   ajouté pour que `build/extension/` existe toujours au moment du packaging.
-5. **Résolution du chemin au runtime.** `getCustomExtensionPath()` remonte
-   depuis `app.asar` pour trouver `CustomDirecte/src`. En développement il
-   pointe sur `CustomDirecte/src` : il doit désormais pointer sur
-   `build/extension`.
+`build/` est écarté : c'est le `buildResources` par défaut d'electron-builder,
+donc un chemin à sémantique réservée où vivent normalement des fichiers suivis
+(icônes, entitlements). L'ignorer en entier créerait une incohérence entre
+poste de dev et CI.
+
+`dist/` est écarté aussi : c'est `directories.output`, qu'electron-builder
+nettoie et réécrit.
+
+`.cache/extension/` n'a aucune sémantique electron-builder et **est déjà
+couvert par `.gitignore` ligne 105** (`.cache`) — vérifié par
+`git check-ignore`. Aucune modification de `.gitignore` n'est donc nécessaire.
+
+### Chargement de l'extension : dev vs packagé
+
+`session.loadExtension()` exige un vrai dossier sur disque ; une extension
+empaquetée dans l'asar ne se charge pas. `asarUnpack` ne disparaît donc pas,
+il **déménage** — et on le remplace par le mécanisme plus robuste :
+
+- `extraResources: [{ from: ".cache/extension", to: "extension" }]`
+- packagé → `path.join(process.resourcesPath, "extension")`
+- dev → `path.join(app.getAppPath(), ".cache", "extension")`
+
+Le résolveur actuel `getCustomExtensionPath()` remonte à l'aveugle de quatre
+niveaux depuis `app.asar` pour retrouver `CustomDirecte/src`, avec un fallback.
+Cette boucle disparaît au profit du branchement `app.isPackaged` ci-dessus.
+
+`extraResources` remplace l'actuel `extraFiles`, et l'entrée
+`asarUnpack: ["CustomDirecte"]` est retirée — le dossier n'est plus dans l'asar
+du tout. Il faut aussi ajouter `"!.cache/**"` à `files`, sinon la sortie du
+patch est empaquetée deux fois : une dans l'asar, une dans `resources/`.
+
+C'est exactement le genre de rupture qui ne se voit qu'au premier build de
+release, d'où la vérification explicite en critère d'acceptation du commit
+correspondant.
+
+### Idempotence et ordre d'exécution
+
+Le patch tourne en `postinstall` (confort en dev) **et** en `prebuild`
+(garantie au packaging). Il tournera donc deux fois en CI, qui enchaîne
+`pnpm install` puis `pnpm run build`.
+
+Le script doit être idempotent par construction : suppression de
+`.cache/extension/`, recopie depuis le submodule, puis patch de la copie
+neuve. Aucune réécriture en place, donc aucune accumulation possible.
 
 Ce travail fait l'objet d'un commit séparé.
 
 ## Anomalies constatées, hors périmètre
 
-Relevées pendant l'analyse, **à ne pas corriger dans ce chantier** sauf
-décision contraire :
+Relevées pendant l'analyse, **à ne pas corriger dans ce chantier**.
 
-- La configuration electron-builder est dupliquée : `electron-builder.yml` et
-  le champ `build` de `package.json`. electron-builder ne lit qu'une source ;
-  si le `.yml` gagne, les cibles `mac` et `dmg`/`linux` déclarées uniquement
-  dans `package.json` ne s'appliquent pas, alors que la CI construit bien
-  `--mac` et `--linux`. À confirmer par un build avant toute correction.
+### La configuration electron-builder est dupliquée — et c'est `package.json` qui gagne
+
+`electron-builder.yml` et le champ `build` de `package.json` coexistent. La
+précédence a été tranchée en lisant le résolveur installé,
+`node_modules/app-builder-lib/out/util/config/load.js` :
+
+```js
+const data = packageMetadata[request.packageKey];   // package.json "build"
+return data == null ? findAndReadConfig(request) : { result: data, configFile: null };
+```
+
+Le fichier de configuration n'est cherché **que si** `build` est absent de
+`package.json`. Ici il est présent : **`electron-builder.yml` n'est jamais lu.**
+C'est du code mort.
+
+Corroboré par les artefacts de la release v1.4.8 : `.dmg` en arm64 **et** x64
+sans aucun `.zip`, ce qui correspond au `mac.target: dmg, arch: [arm64, x64]`
+de `package.json` et non au défaut mac d'electron-builder (`dmg` + `zip`).
+`electron-builder.yml`, lui, ne déclare aucune cible mac.
+
+Les logs CI de la release n'ont pas pu confirmer par un avertissement : GitHub
+les a purgés (HTTP 410).
+
+Rien ne casse aujourd'hui, les deux fichiers ayant un contenu quasi identique
+pour `win`, `files`, `extraFiles` et `asarUnpack` — ce qui explique que
+personne ne l'ait remarqué.
+
+**Conséquence directe pour ce chantier :** toutes les modifications de
+packaging décrites plus haut doivent être faites dans **`package.json`**.
+Les faire dans `electron-builder.yml` n'aurait aucun effet et ne se verrait
+qu'à la release.
+
+### Divers
+
 - `api-researchs/` n'est pas suivi par git ni ignoré.
+- Le submodule `CustomDirecte` a un commit d'avance en amont (`c642d83`,
+  README uniquement). **On ne bouge pas le pointeur pendant ce refactor** ;
+  ce sera un changement séparé.
 
 ## Stratégie de test
 
@@ -293,11 +361,26 @@ proprement : beaucoup de fichiers quittent la racine.
 
 0. Pose du tag `pre-auth-api` sur le HEAD actuel — ce n'est pas un commit,
    juste le point de retour.
-1. `refactor: patch-extension écrit dans build/ au lieu du submodule`
-3. `refactor: réorganisation de l'arborescence vers src/`
-4. `feat: client API ÉcoleDirecte + construction des payloads de session`
-5. `feat: preload d'amorçage de session`
-6. `feat: flux d'auth headless, 2FA, re-login avec garde`
-7. `chore: suppression de puppeteer`
+1. `refactor: patch-extension écrit dans .cache/extension au lieu du submodule`
+2. `refactor: réorganisation de l'arborescence vers src/`
+3. `feat: client API ÉcoleDirecte + construction des payloads de session`
+4. `feat: preload d'amorçage de session`
+5. `feat: flux d'auth headless, 2FA, re-login avec garde`
+6. `chore: suppression de puppeteer`
 
-Chaque commit laisse l'application démarrable.
+### Critère d'acceptation, identique à chaque commit
+
+À l'issue de **chaque** commit de la liste, sans exception :
+
+1. l'application démarre (`pnpm start`) ;
+2. elle se connecte à ÉcoleDirecte et affiche `/Accueil` ;
+3. le badge de la barre des tâches se met à jour.
+
+Aucun commit n'est poussé tant que ces trois points ne sont pas vérifiés à la
+main. L'objectif est de pouvoir s'arrêter à n'importe quelle étape sans laisser
+le dépôt dans un état non lançable.
+
+Le commit 1 (packaging de l'extension) porte un critère supplémentaire, parce
+que c'est le seul dont la régression est invisible en développement :
+`pnpm run build --win` doit produire un installeur dont le dossier
+`resources/extension/` contient bien le `manifest.json` patché.
