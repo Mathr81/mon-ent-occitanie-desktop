@@ -8,7 +8,9 @@
     "start": "cross-env NODE_ENV=development electron .",
     "patch": "node scripts/patch-extension.js",
     "prestart": "npm run patch",
+    "prebuild": "node scripts/patch-extension.js",
     "build": "electron-builder",
+    "prebuild:publish": "node scripts/patch-extension.js",
     "build:publish": "electron-builder --publish always",
     "postinstall": "electron-builder install-app-deps && npm run patch"
   },
@@ -82,23 +84,25 @@
       "**/*",
       "!userData/**",
       "!dist/**",
-      "!.git/**"
-    ],
-    "extraFiles": [
-      {
-        "from": "CustomDirecte",
-        "to": "CustomDirecte",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ],
-    "asarUnpack": [
-      "CustomDirecte"
+      "!.cache/**",
+      "!.git/**",
+      "!CustomDirecte/**",
+      "!api-researchs/**",
+      "!docs/**",
+      "!test/**"
     ],
     "directories": {
       "output": "dist",
       "buildResources": "assets"
-    }
+    },
+    "extraResources": [
+      {
+        "from": ".cache/extension",
+        "to": "extension",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
   }
 }

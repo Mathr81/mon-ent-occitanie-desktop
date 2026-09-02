@@ -70,30 +70,11 @@ console.error = (...args) => {
 // =========================
 
 function getCustomExtensionPath() {
-  if (process.env.NODE_ENV === "development") {
-    return path.join(__dirname, "CustomDirecte", "src");
-  }
-
-  // Remonter depuis app.asar jusqu'à trouver CustomDirecte (robuste
-  // quelle que soit la profondeur d'imbrication d'electron-builder)
-  let dir = path.dirname(app.getAppPath()); // resources/
-  for (let i = 0; i < 4; i++) {
-    dir = path.dirname(dir);
-    const candidate = path.join(dir, "CustomDirecte", "src");
-    if (fs.existsSync(candidate)) {
-      console.log("Extension trouvée :", candidate);
-      return candidate;
-    }
-  }
-
-  // Fallback ultime
-  const fallback = path.join(
-    path.dirname(path.dirname(app.getAppPath())),
-    "CustomDirecte",
-    "src"
-  );
-  console.error("CustomDirecte introuvable, fallback :", fallback);
-  return fallback;
+  // La sortie patchée de scripts/patch-extension.js. Jamais dans l'asar :
+  // session.loadExtension() exige un vrai dossier sur disque.
+  return app.isPackaged
+    ? path.join(process.resourcesPath, "extension")
+    : path.join(app.getAppPath(), ".cache", "extension");
 }
 
 // =========================

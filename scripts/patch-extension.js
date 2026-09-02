@@ -1,67 +1,65 @@
 // scripts/patch-extension.js
+//
+// Copie CustomDirecte/src vers .cache/extension/ puis patche la copie.
+// Le submodule n'est jamais ecrit : il reste read-only.
+//
+// Idempotent par construction : on supprime, on recopie, on patche du neuf.
 const fs = require("fs");
 const path = require("path");
 
-const files = [
-  {
-    path: path.join(__dirname, "../CustomDirecte/src/scripts/background.js"),
-    patches: [
-      {
-        from: "browser.storage.sync",
-        to: "browser.storage.local",
-      },
-    ],
-  },
-  {
-    path: path.join(__dirname, "../CustomDirecte/src/scripts/main.js"),
-    patches: [
-      {
-        from: "browser.storage.sync",
-        to: "browser.storage.local",
-      },
-      {
-        from: "chrome.storage.sync",
-        to: "chrome.storage.local",
-      },
-    ],
-  },
-  {
-    path: path.join(__dirname, "../CustomDirecte/src/pages/popup/interface.js"),
-    patches: [
-      {
-        from: "browser.storage.sync",
-        to: "browser.storage.local",
-      },
-    ],
-  },
-];
+const SRC = path.join(__dirname, "..", "CustomDirecte", "src");
+const DEST = path.join(__dirname, "..", ".cache", "extension");
 
-let anyError = false;
+const PATCHES = {
+  "scripts/background.js": [["browser.storage.sync", "browser.storage.local"]],
+  "scripts/main.js": [
+    ["browser.storage.sync", "browser.storage.local"],
+    ["chrome.storage.sync", "chrome.storage.local"],
+  ],
+  "pages/popup/interface.js": [["browser.storage.sync", "browser.storage.local"]],
+};
 
-for (const file of files) {
-  if (!fs.existsSync(file.path)) {
-    console.warn(`[patch] Fichier introuvable, ignoré : ${file.path}`);
+if (!fs.existsSync(SRC)) {
+  console.error(`[patch] Submodule absent : ${SRC}`);
+  console.error("[patch] Lancez : git submodule update --init --recursive");
+  process.exit(1);
+}
+
+fs.rmSync(DEST, { recursive: true, force: true });
+fs.mkdirSync(DEST, { recursive: true });
+fs.cpSync(SRC, DEST, { recursive: true });
+console.log(`[patch] Copie ${SRC} -> ${DEST}`);
+
+for (const [relPath, patches] of Object.entries(PATCHES)) {
+  const file = path.join(DEST, relPath);
+
+  if (!fs.existsSync(file)) {
+    console.warn(`[patch] Absent, ignore : ${relPath}`);
     continue;
   }
 
-  let content = fs.readFileSync(file.path, "utf8");
-  let changed = false;
+  let content = fs.readFileSync(file, "utf8");
+  let total = 0;
 
-  for (const { from, to } of file.patches) {
-    const count = (content.match(new RegExp(from.replace(/\./g, "\\."), "g")) || []).length;
+  for (const [from, to] of patches) {
+    const count = content.split(from).length - 1;
     if (count > 0) {
       content = content.replaceAll(from, to);
-      console.log(`[patch] ${path.basename(file.path)} : "${from}" → "${to}" (${count} occurrence(s))`);
-      changed = true;
+      total += count;
     }
   }
 
-  if (changed) {
-    fs.writeFileSync(file.path, content, "utf8");
-    console.log(`[patch] ✓ ${path.basename(file.path)} patché`);
+  if (total > 0) {
+    fs.writeFileSync(file, content, "utf8");
+    console.log(`[patch] ${relPath} : ${total} remplacement(s)`);
   } else {
-    console.log(`[patch] ${path.basename(file.path)} : rien à patcher`);
+    console.log(`[patch] ${relPath} : rien a patcher`);
   }
 }
 
-if (!anyError) console.log("[patch] Terminé ✓");
+if (!fs.existsSync(path.join(DEST, "manifest.json"))) {
+  console.error("[patch] manifest.json absent de la sortie !");
+  process.exit(1);
+}
+
+console.log("[patch] Termine");
