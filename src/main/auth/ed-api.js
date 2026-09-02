@@ -1,0 +1,105 @@
+// Client HTTP de l'API EcoleDirecte.
+//
+// fetchImpl et readGtkCookie sont injectes : en production ce sont
+// session.defaultSession.fetch et la lecture du cookie GTK dans le jar de
+// la session, ce qui fait atterrir les cookies directement dans la fenetre.
+// En test ce sont des bouchons, ce qui rend ce module testable sans reseau.
+
+const BASE_URL = "https://api.ecoledirecte.com";
+// Valeur de packageVersion du SPA courant.
+const DEFAULT_API_VERSION = "4.101.2";
+
+const decodeB64 = (v) => Buffer.from(String(v || ""), "base64").toString("utf8");
+const encodeB64 = (v) => Buffer.from(String(v || ""), "utf8").toString("base64");
+
+function createEdApi({ fetchImpl, readGtkCookie, apiVersion = DEFAULT_API_VERSION, userAgent }) {
+  function encodeBody(payload) {
+    return new URLSearchParams({ data: JSON.stringify(payload) }).toString();
+  }
+
+  async function post(path, payload, extraHeaders = {}) {
+    const url = `${BASE_URL}${path}${path.includes("?") ? "&" : "?"}v=${apiVersion}`;
+    const res = await fetchImpl(url, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": userAgent,
+        ...extraHeaders,
+      },
+      body: encodeBody(payload),
+    });
+    return { json: await res.json(), headers: res.headers };
+  }
+
+  function normalize(json, headers) {
+    return {
+      code: json.code,
+      token: json.token || "",
+      message: json.message || "",
+      data: json.data || {},
+      twoFaToken: headers.get("x-token") || headers.get("2fa-token") || "",
+    };
+  }
+
+  async function login({ identifiant, motdepasse, uuid, fa }) {
+    // Le GTK est obligatoire depuis le 24/03/2025 : sans lui l'API repond
+    // "identifiant et/ou mot de passe invalide" meme avec des identifiants
+    // corrects.
+    await fetchImpl(`${BASE_URL}/v3/login.awp?gtk=1&v=${apiVersion}`, {
+      method: "GET",
+      credentials: "include",
+      headers: { "User-Agent": userAgent },
+    });
+    const gtk = await readGtkCookie();
+
+    const payload = { identifiant, motdepasse, isReLogin: false, uuid: uuid || "" };
+    if (Array.isArray(fa) && fa.length > 0) payload.fa = fa;
+
+    const { json, headers } = await post("/v3/login.awp", payload, gtk ? { "X-Gtk": gtk } : {});
+    return normalize(json, headers);
+  }
+
+  async function relogin({ identifiant, uuid, typeCompte, accesstoken, fa }) {
+    const payload = {
+      identifiant,
+      uuid: uuid || "",
+      isReLogin: true,
+      motdepasse: "",
+      typeCompte,
+      accesstoken,
+    };
+    if (Array.isArray(fa) && fa.length > 0) payload.fa = fa;
+
+    const { json, headers } = await post("/v3/login.awp", payload);
+    return normalize(json, headers);
+  }
+
+  async function get2faQuestion(twoFaToken) {
+    const { json } = await post(
+      "/v3/connexion/doubleauth.awp?verbe=get",
+      {},
+      { "X-Token": twoFaToken }
+    );
+    const data = json.data || {};
+    return {
+      code: json.code,
+      question: decodeB64(data.question),
+      propositions: (data.propositions || []).map(decodeB64),
+    };
+  }
+
+  async function send2faAnswer(choix, twoFaToken) {
+    const { json } = await post(
+      "/v3/connexion/doubleauth.awp?verbe=post",
+      { choix: encodeB64(choix) },
+      { "X-Token": twoFaToken }
+    );
+    const data = json.data || {};
+    return { cn: data.cn, cv: data.cv };
+  }
+
+  return { login, relogin, get2faQuestion, send2faAnswer };
+}
+
+module.exports = { createEdApi, BASE_URL, DEFAULT_API_VERSION };
