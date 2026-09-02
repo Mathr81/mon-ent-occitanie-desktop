@@ -1,48 +1,77 @@
 <!DOCTYPE html>
 <html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Double authentification</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Double authentification</title>
+    <link rel="stylesheet" href="../shared/tokens.css" />
+    <link rel="stylesheet" href="../shared/base.css" />
+    <style>
+      /* La question vient de l'API : sa longueur varie, elle doit pouvoir
+       * passer à la ligne sans pousser les actions hors de la fenêtre. */
+      #question {
+        margin: 0 0 var(--ed-gap);
+        font-weight: var(--ed-label-weight);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ed-window">
+      <div>
+        <h1 class="ed-title">Double authentification</h1>
+        <p class="ed-subtitle">
+          ÉcoleDirecte demande une vérification. Votre réponse est mémorisée
+          pour les prochaines connexions.
+        </p>
+      </div>
 
-  <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
-    <h2 class="text-2xl font-bold text-gray-800 mb-2 text-center">Double authentification</h2>
-    <p class="text-gray-500 text-sm text-center mb-5">
-      École Directe demande une vérification. La réponse est mémorisée pour les prochaines connexions.
-    </p>
+      <div class="ed-error" id="error" hidden></div>
 
-    <p id="question" class="text-gray-800 font-medium text-center mb-4"></p>
-    <div id="propositions" class="space-y-2 max-h-80 overflow-y-auto"></div>
-  </div>
+      <div class="ed-body">
+        <p id="question"></p>
+        <div id="propositions"></div>
+      </div>
 
-  <script>
-    const { ipcRenderer } = require("electron");
+      <div class="ed-actions">
+        <button class="ed-btn ed-btn--quiet" type="button" id="cancel">Annuler</button>
+      </div>
+    </div>
 
-    ipcRenderer.on("twofa-question", (event, { question, propositions }) => {
-      document.getElementById("question").textContent = question;
+    <script>
+      const { ipcRenderer } = require("electron");
 
+      const questionEl = document.getElementById("question");
       const container = document.getElementById("propositions");
-      container.innerHTML = "";
+      const errorBox = document.getElementById("error");
 
-      propositions.forEach((proposition) => {
-        const button = document.createElement("button");
-        button.textContent = proposition;
-        button.className =
-          "w-full bg-indigo-600 text-white font-semibold py-2 px-3 rounded-lg shadow hover:bg-indigo-500 transition duration-200 text-left";
-        button.addEventListener("click", () => {
-          container.querySelectorAll("button").forEach((b) => {
-            b.disabled = true;
-            b.className += " opacity-50 cursor-not-allowed";
+      ipcRenderer.on("twofa-question", (event, { question, propositions }) => {
+        questionEl.textContent = question;
+        container.replaceChildren();
+
+        if (!propositions || propositions.length === 0) {
+          errorBox.textContent =
+            "ÉcoleDirecte n'a proposé aucune réponse. Fermez cette fenêtre et réessayez.";
+          errorBox.hidden = false;
+          return;
+        }
+
+        propositions.forEach((proposition) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "ed-btn ed-btn--choice";
+          button.textContent = proposition;
+          button.addEventListener("click", () => {
+            container
+              .querySelectorAll("button")
+              .forEach((b) => (b.disabled = true));
+            ipcRenderer.send("twofa-answer", proposition);
           });
-          ipcRenderer.send("twofa-answer", proposition);
+          container.appendChild(button);
         });
-        container.appendChild(button);
       });
-    });
-  </script>
 
-</body>
+      document.getElementById("cancel").addEventListener("click", () => {
+        window.close();
+      });
+    </script>
+  </body>
 </html>

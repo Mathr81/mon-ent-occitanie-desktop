@@ -1,0 +1,100 @@
+/*
+ * Jetons de style partagés par les fenêtres maison de l'application
+ * (connexion, double authentification, popup de liens externes).
+ *
+ * Ces fenêtres s'affichent à côté du site ÉcoleDirecte : elles doivent
+ * avoir l'air d'en faire partie. Toutes les valeurs ci-dessous sont donc
+ * RELEVÉES sur le site, pas choisies. Provenance en commentaire.
+ *
+ * Relevé par `scripts/extract-theme.js` sur https://www.ecoledirecte.com/login
+ * (accessible sans authentification), septembre 2026.
+ *
+ * Piège constaté : ÉcoleDirecte surcharge les variables `-rgb` de Bootstrap
+ * sans toucher aux variables de base. `--bs-primary` vaut encore le bleu
+ * Bootstrap #0d6efd, mais `--bs-primary-rgb` vaut 15,143,209 — et ce sont les
+ * `-rgb` que les classes utilitaires consomment. Les valeurs réellement
+ * rendues sont donc celles reprises ici, pas les valeurs de base.
+ *
+ * Les noms sont sémantiques (rôle, pas couleur) afin qu'un thème sombre
+ * n'ait qu'à redéfinir ces mêmes jetons. Le thème sombre est hors périmètre
+ * pour l'instant.
+ */
+
+:root {
+  /* ---- Typographie ------------------------------------------------------
+   * body { font-family } et { font-size } du site. ÉcoleDirecte remplace la
+   * pile système de Bootstrap par Tahoma : ne pas retomber sur la pile
+   * système, c'est ce qui trahit une fenêtre rapportée.
+   */
+  --ed-font: Tahoma, Helvetica, Arial, sans-serif;
+  --ed-font-size: 14px;          /* body font-size */
+  --ed-line-height: 21px;        /* body line-height */
+  --ed-font-size-sm: 12px;       /* dérivé, textes secondaires */
+  --ed-title-size: 18px;         /* h1 du site = 31px, trop grand pour une
+                                  * fenêtre de dialogue : palier retenu */
+  --ed-title-weight: 500;        /* h1 font-weight */
+  --ed-label-weight: 700;        /* label font-weight */
+
+  /* ---- Surfaces et texte ---------------------------------------------- */
+  --ed-surface: #ffffff;               /* body background-color */
+  --ed-surface-sunken: #f5f6f7;        /* dérivé, fonds de zones inertes */
+  --ed-surface-inverse: #333333;       /* fond de la barre haute du site */
+
+  --ed-text: #212529;                  /* --bs-body-color */
+  --ed-text-muted: rgba(33, 37, 41, 0.75);  /* --bs-secondary-color */
+  --ed-text-faint: rgba(33, 37, 41, 0.5);   /* --bs-tertiary-color */
+  --ed-text-on-accent: #ffffff;
+  --ed-text-on-inverse: #ffffff;
+
+  /* ---- Accent ----------------------------------------------------------
+   * --bs-primary-rgb surchargé par ÉcoleDirecte : 15,143,209.
+   */
+  --ed-accent: #0f8fd1;
+  --ed-accent-hover: #0c79b3;    /* dérivé, assombrissement de l'accent */
+  --ed-accent-soft: #5bbad5;     /* relevé sur le site, accent clair */
+
+  /* ---- Bordures et rayons --------------------------------------------- */
+  --ed-border: #e4e7ea;          /* --bs-border-color, et bordure des champs */
+  --ed-border-strong: #c9ced3;   /* dérivé, bordures au survol */
+  --ed-radius-field: 7px;        /* border-radius relevé sur les champs */
+  --ed-radius-control: 5px;      /* --bs-border-radius = .375rem = 5.25px,
+                                  * arrondi pour un rendu net */
+
+  /* ---- Contrôles -------------------------------------------------------
+   * Hauteurs et rembourrages relevés sur les champs et boutons du site.
+   */
+  --ed-field-height: 30px;       /* input height */
+  --ed-control-height: 34px;     /* button height (34.17px) */
+  --ed-control-padding-y: 6px;   /* 5.25px */
+  --ed-control-padding-x: 11px;  /* 10.5px */
+
+  /* ---- Rythme ----------------------------------------------------------
+   * Non relevé : le site n'a pas d'échelle d'espacement exploitable pour
+   * une fenêtre de dialogue. Échelle de 4px, cohérente avec le 21px de
+   * hauteur de ligne.
+   */
+  --ed-gap-xs: 4px;
+  --ed-gap-sm: 8px;
+  --ed-gap: 12px;
+  --ed-gap-lg: 20px;
+  --ed-window-padding: 20px;
+
+  /* ---- Erreur ----------------------------------------------------------
+   * Rendu réel de .alert-danger sur le site, résolu depuis les variables
+   * Bootstrap : --bs-danger-bg-subtle / -border-subtle / -text-emphasis.
+   * Un seul traitement d'erreur pour les trois fenêtres et pour le bandeau
+   * du filet de sécurité de la fenêtre principale.
+   */
+  --ed-danger-bg: #f8d7da;
+  --ed-danger-border: #f1aeb5;
+  --ed-danger-text: #58151c;
+
+  /* Accent « danger » des utilitaires du site : --bs-danger-rgb surchargé
+   * en 205,20,120. C'est la couleur de la pastille de notification, pas un
+   * rouge. Sert aux marqueurs, pas aux fonds d'alerte. */
+  --ed-danger-accent: #cd1478;
+
+  /* Bordure de champ invalide : --bs-form-invalid-border-color, qui lui
+   * reste au rouge Bootstrap. */
+  --ed-danger-field-border: #dc3545;
+}

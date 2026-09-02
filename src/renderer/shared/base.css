@@ -1,0 +1,205 @@
+/*
+ * Composants partagés par les fenêtres maison. Tout ce qui se répète d'une
+ * fenêtre à l'autre vit ici : marges, titres, champs, boutons, et surtout le
+ * rendu des erreurs — un seul traitement, au même endroit, dans les trois
+ * fenêtres.
+ *
+ * Parti pris : une fenêtre de dialogue d'application, pas une page web. Pas
+ * de carte flottante ombrée sur un fond, pas de dégradé, pas d'emoji, pas
+ * d'animation décorative. La surface remplit la fenêtre, le contenu est
+ * aligné à gauche, les actions sont en bas à droite comme dans tout dialogue.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--ed-font);
+  font-size: var(--ed-font-size);
+  line-height: var(--ed-line-height);
+  color: var(--ed-text);
+  background: var(--ed-surface);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- Ossature de fenêtre --------------------------------------------- */
+
+/* Filet d'accent en haut : rattache visuellement la fenêtre au site sans
+ * recourir à un bandeau coloré. */
+.ed-window {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: var(--ed-window-padding);
+  border-top: 3px solid var(--ed-accent);
+  gap: var(--ed-gap);
+}
+
+.ed-title {
+  margin: 0;
+  font-size: var(--ed-title-size);
+  font-weight: var(--ed-title-weight);
+  line-height: 1.3;
+}
+
+.ed-subtitle {
+  margin: 0;
+  font-size: var(--ed-font-size-sm);
+  color: var(--ed-text-muted);
+}
+
+/* Corps extensible : c'est lui qui défile quand le contenu dépasse, jamais
+ * la fenêtre. Les actions restent donc toujours visibles. */
+.ed-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  /* Jamais de defilement horizontal : le contenu passe a la ligne. */
+  overflow-x: hidden;
+}
+
+.ed-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ed-gap-sm);
+  flex-shrink: 0;
+}
+
+/* ---- Champs ----------------------------------------------------------- */
+
+.ed-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ed-gap-xs);
+}
+
+.ed-field + .ed-field {
+  margin-top: var(--ed-gap);
+}
+
+.ed-label {
+  font-weight: var(--ed-label-weight);
+}
+
+.ed-input {
+  width: 100%;
+  height: var(--ed-field-height);
+  padding: var(--ed-control-padding-y) var(--ed-control-padding-x);
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--ed-text);
+  background: var(--ed-surface);
+  border: 1px solid var(--ed-border);
+  border-radius: var(--ed-radius-field);
+}
+
+.ed-input:focus {
+  outline: none;
+  border-color: var(--ed-accent);
+}
+
+.ed-input[aria-invalid="true"] {
+  border-color: var(--ed-danger-field-border);
+}
+
+/* Champ mot de passe avec bouton révéler intégré. */
+.ed-input-group {
+  display: flex;
+  gap: var(--ed-gap-sm);
+  align-items: stretch;
+}
+
+.ed-input-group .ed-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ---- Boutons ---------------------------------------------------------- */
+
+.ed-btn {
+  height: var(--ed-control-height);
+  padding: var(--ed-control-padding-y) var(--ed-control-padding-x);
+  font-family: inherit;
+  font-size: inherit;
+  border: 1px solid transparent;
+  border-radius: var(--ed-radius-control);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ed-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.ed-btn--primary {
+  color: var(--ed-text-on-accent);
+  background: var(--ed-accent);
+}
+
+.ed-btn--primary:hover:not(:disabled) {
+  background: var(--ed-accent-hover);
+}
+
+.ed-btn--quiet {
+  color: var(--ed-text);
+  background: var(--ed-surface);
+  border-color: var(--ed-border);
+}
+
+.ed-btn--quiet:hover:not(:disabled) {
+  border-color: var(--ed-border-strong);
+}
+
+/* Bouton pleine largeur, empilable : liste de propositions de la 2FA.
+ * Les libelles viennent de l'API et peuvent etre tres longs : ils doivent
+ * passer a la ligne, sinon la fenetre defile horizontalement et le texte
+ * est coupe. */
+.ed-btn--choice {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: var(--ed-control-height);
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: var(--ed-line-height);
+  color: var(--ed-text);
+  background: var(--ed-surface);
+  border-color: var(--ed-border);
+}
+
+.ed-btn--choice:hover:not(:disabled) {
+  border-color: var(--ed-accent);
+}
+
+.ed-btn--choice + .ed-btn--choice {
+  margin-top: var(--ed-gap-sm);
+}
+
+/* ---- Erreur -----------------------------------------------------------
+ * Traitement unique, repris à l'identique par le bandeau d'avertissement
+ * de la fenêtre principale (src/main/index.js).
+ */
+
+.ed-error {
+  padding: var(--ed-gap-sm) var(--ed-gap);
+  color: var(--ed-danger-text);
+  background: var(--ed-danger-bg);
+  border: 1px solid var(--ed-danger-border);
+  border-radius: var(--ed-radius-control);
+  font-size: var(--ed-font-size-sm);
+}
+
+.ed-error[hidden] {
+  display: none;
+}

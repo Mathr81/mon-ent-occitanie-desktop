@@ -56,6 +56,26 @@ ipcMain.on("ed:session-seed", (event) => {
 // =========================
 
 // Non bloquant : le formulaire EcoleDirecte reste utilisable en dessous.
+//
+// Reprend a l'identique le traitement d'erreur des fenetres maison
+// (.ed-error dans src/renderer/shared/base.css) : memes couleurs, meme
+// typographie. Les valeurs sont dupliquees ici parce que la feuille est
+// injectee dans une page distante que l'on ne controle pas.
+const AUTH_BANNER_STYLE = [
+  "position:fixed",
+  "top:0",
+  "left:0",
+  "right:0",
+  "z-index:99999",
+  "padding:8px 12px",
+  "color:#58151c",                      // --ed-danger-text
+  "background:#f8d7da",                 // --ed-danger-bg
+  "border-bottom:1px solid #f1aeb5",    // --ed-danger-border
+  "font-family:Tahoma,Helvetica,Arial,sans-serif", // --ed-font
+  "font-size:12px",                     // --ed-font-size-sm
+  "text-align:center",
+].join(";");
+
 function showAuthBanner(mainWindow, code) {
   if (mainWindow.isDestroyed()) return;
 
@@ -69,7 +89,7 @@ function showAuthBanner(mainWindow, code) {
       if (!banner) {
         banner = document.createElement('div');
         banner.id = 'ed-auth-banner';
-        banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#7a2233;color:#ffd9e0;padding:8px 16px;font-size:13px;z-index:99999;font-family:Segoe UI,sans-serif;text-align:center;';
+        banner.style.cssText = ${JSON.stringify(AUTH_BANNER_STYLE)};
         document.body.appendChild(banner);
       }
       banner.textContent = ${JSON.stringify(message)};
