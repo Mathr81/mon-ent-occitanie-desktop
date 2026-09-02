@@ -219,6 +219,8 @@ function setupReloginOnRedirect(mainWindow, deps) {
 // MAIN
 // =========================
 
+let mainWindowRef = null;
+
 async function main() {
   const credentialsStore = createCredentialsStore(
     path.join(userDataPath, "credentials.json"),
@@ -246,6 +248,7 @@ async function main() {
   loadCustomExtension(ses);
 
   const mainWindow = createMainWindow();
+  mainWindowRef = mainWindow;
   extensions.addTab(mainWindow.webContents, mainWindow);
 
   Menu.setApplicationMenu(null);
@@ -279,11 +282,26 @@ async function main() {
 // APP LIFECYCLE
 // =========================
 
-app.whenReady().then(() => {
-  main().catch((err) => {
-    console.error("Erreur lors du lancement :", err);
+// Deux processus Chromium sur un meme profil ne peuvent plus ecrire le
+// cache ni la base des service workers : l'extension cesse silencieusement
+// de fonctionner. Le verrou empeche ce cas, y compris lorsqu'on lance
+// l'application installee deux fois.
+if (!app.requestSingleInstanceLock()) {
+  console.warn("Une autre instance utilise déjà ce profil, fermeture.");
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (!mainWindowRef || mainWindowRef.isDestroyed()) return;
+    if (mainWindowRef.isMinimized()) mainWindowRef.restore();
+    mainWindowRef.focus();
   });
-});
+
+  app.whenReady().then(() => {
+    main().catch((err) => {
+      console.error("Erreur lors du lancement :", err);
+    });
+  });
+}
 
 app.on("window-all-closed", () => {
   stopBadgePolling();

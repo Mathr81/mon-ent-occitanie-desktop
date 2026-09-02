@@ -50,12 +50,17 @@ pnpm install
 pnpm start
 ```
 
-Par défaut, `pnpm start` utilise le **même profil que l'application installée**
-(`%APPDATA%/Mon EcoleDirecte`) : la session reste donc persistante entre les
-lancements.
+`pnpm start` utilise un profil de développement dédié,
+`%APPDATA%/Mon EcoleDirecte (dev)`, distinct de celui de l'application
+installée. Deux processus Chromium ne peuvent pas partager un profil : le
+cache et la base des service workers deviennent inaccessibles et l'extension
+CustomDirecte cesse silencieusement de fonctionner.
 
-Pour travailler sur un profil séparé — par exemple pour tester le premier
-démarrage sans identifiants — définir `ED_DEV_USER_DATA` vers un dossier
+La session du profil de développement est persistante : la connexion et la
+double authentification ne sont demandées qu'au premier lancement.
+
+Pour utiliser un autre profil — repartir de zéro, ou reprendre celui de
+l'application installée — définir `ED_DEV_USER_DATA` vers un dossier
 **situé hors du dépôt** :
 
 ```bash
