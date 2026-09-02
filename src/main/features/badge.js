@@ -11,36 +11,47 @@ const BADGE_SELECTORS = [
   ".ed-menu-badge",
 ];
 
-async function updateBadge(page, mainWindow) {
-  if (!page) { badgeLog("Page absente"); return; }
+// Lit le badge dans le DOM de la page. Ce module ne connait que le
+// webContents : il n'importe jamais windows/, sinon features/ et windows/
+// deviendraient mutuellement dependants.
+async function readBadgeCount(webContents) {
+  return webContents.executeJavaScript(`(() => {
+    const selectors = ${JSON.stringify(BADGE_SELECTORS)};
+    const debug = [];
+    for (const selector of selectors) {
+      try {
+        const els = document.querySelectorAll(selector);
+        debug.push({ selector, found: els.length, values: Array.from(els).map((el) => el.textContent.trim()) });
+        if (els.length > 0) {
+          let total = 0;
+          els.forEach((el) => { const n = parseInt(el.textContent.trim(), 10); if (!isNaN(n)) total += n; });
+          if (total > 0) return { count: total, matchedSelector: selector, debug };
+        }
+      } catch (e) { debug.push({ selector, error: String(e) }); }
+    }
+    return { count: 0, matchedSelector: null, debug };
+  })()`);
+}
+
+function applyBadge(count, mainWindow) {
+  if (process.platform === "darwin" || process.platform === "linux") {
+    try { app.setBadgeCount(count); badgeLog("setBadgeCount(" + count + ")"); }
+    catch (e) { badgeLog("setBadgeCount non supporte :", e.message); }
+  }
+  if (process.platform === "win32") {
+    if (count > 0) { mainWindow.setOverlayIcon(createBadgeImage(count), count + " notification(s)"); badgeLog("Overlay applique"); }
+    else { mainWindow.setOverlayIcon(null, ""); badgeLog("Overlay supprime"); }
+  }
+}
+
+async function updateBadge(webContents, mainWindow) {
+  if (!webContents || webContents.isDestroyed()) { badgeLog("webContents absent"); return; }
   if (mainWindow.isDestroyed()) { badgeLog("Fenetre detruite"); return; }
   try {
     badgeLog("Verification du badge...");
-    const result = await page.evaluate((selectors) => {
-      const debug = [];
-      for (const selector of selectors) {
-        try {
-          const els = document.querySelectorAll(selector);
-          debug.push({ selector, found: els.length, values: Array.from(els).map((el) => el.textContent.trim()) });
-          if (els.length > 0) {
-            let total = 0;
-            els.forEach((el) => { const n = parseInt(el.textContent.trim(), 10); if (!isNaN(n)) total += n; });
-            if (total > 0) return { count: total, matchedSelector: selector, debug };
-          }
-        } catch (e) { debug.push({ selector, error: String(e) }); }
-      }
-      return { count: 0, matchedSelector: null, debug };
-    }, BADGE_SELECTORS);
-    badgeLog("Resultat :", result);
-    const count = result.count;
-    if (process.platform === "darwin" || process.platform === "linux") {
-      try { app.setBadgeCount(count); badgeLog("setBadgeCount(" + count + ")"); }
-      catch (e) { badgeLog("setBadgeCount non supporte :", e.message); }
-    }
-    if (process.platform === "win32") {
-      if (count > 0) { mainWindow.setOverlayIcon(createBadgeImage(count), count + " notification(s)"); badgeLog("Overlay applique"); }
-      else { mainWindow.setOverlayIcon(null, ""); badgeLog("Overlay supprime"); }
-    }
+    const result = await readBadgeCount(webContents);
+    badgeLog("Resultat :", JSON.stringify(result));
+    applyBadge(result.count, mainWindow);
   } catch (err) { badgeLog("Erreur updateBadge :", err); }
 }
 
@@ -77,14 +88,14 @@ function createBadgeImage(count) {
   return img;
 }
 
-function startBadgePolling(page, mainWindow) {
+function startBadgePolling(webContents, mainWindow) {
   badgeLog("Demarrage polling badge");
-  badgeCheckInterval = setInterval(() => { badgeLog("Tick"); updateBadge(page, mainWindow); }, 2*60*1000);
-  setTimeout(() => { badgeLog("Premier check"); updateBadge(page, mainWindow); }, 5000);
+  badgeCheckInterval = setInterval(() => { badgeLog("Tick"); updateBadge(webContents, mainWindow); }, 2*60*1000);
+  setTimeout(() => { badgeLog("Premier check"); updateBadge(webContents, mainWindow); }, 5000);
 }
 
 function stopBadgePolling() {
   if (badgeCheckInterval) { clearInterval(badgeCheckInterval); badgeCheckInterval = null; }
 }
 
-module.exports = { startBadgePolling, stopBadgePolling, updateBadge };
+module.exports = { startBadgePolling, stopBadgePolling, updateBadge, applyBadge };
