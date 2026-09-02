@@ -2,14 +2,16 @@
 
 Une application desktop qui se connecte automatiquement à [ÉcoleDirecte](https://www.ecoledirecte.com), avec des fonctionnalités pensées pour un usage quotidien au lycée.
 
-Construite avec [Electron](https://www.electronjs.org/) et [Puppeteer](https://pptr.dev/).
+Construite avec [Electron](https://www.electronjs.org/). L'authentification se fait
+entièrement par l'API ÉcoleDirecte, sans navigateur piloté.
 
 ---
 
 ## Fonctionnalités
 
-- **Connexion automatique** — les identifiants sont sauvegardés chiffrés localement (via `safeStorage` d'Electron) et remplis automatiquement à chaque démarrage
-- **Re-login automatique** — si la session expire et qu'ÉcoleDirecte affiche une popup de reconnexion, l'application la détecte et rentre le mot de passe sans intervention
+- **Connexion automatique** — les identifiants sont sauvegardés chiffrés localement (via `safeStorage` d'Electron) et la connexion se fait par appel API au démarrage, sans passer par le formulaire du site
+- **Double authentification** — si ÉcoleDirecte pose sa question de vérification, l'application l'affiche et mémorise la réponse pour les connexions suivantes
+- **Re-login automatique** — si la session expire, l'application se réauthentifie seule, avec une garde de 3 tentatives et un délai croissant pour ne jamais boucler
 - **Support d'extensions** — chargement automatique de l'extension [CustomDirecte](https://github.com/Bottersnike/CustomDirecte) pour améliorer l'interface d'ÉcoleDirecte
 - **Badge de notifications** — le nombre de notifications non lues s'affiche sur l'icône dans la barre des tâches Windows
 - **Liens externes dans une popup intégrée** — les liens ouverts depuis ÉcoleDirecte s'affichent dans une mini-fenêtre avec barre d'outils (copier l'URL, ouvrir dans le navigateur)
@@ -23,6 +25,14 @@ Construite avec [Electron](https://www.electronjs.org/) et [Puppeteer](https://p
 Télécharge le dernier installeur `.exe` depuis les [Releases GitHub](../../releases/latest) et lance-le.
 
 Au premier démarrage, une fenêtre te demande tes identifiants ÉcoleDirecte. Ils sont ensuite sauvegardés chiffrés et tu n'as plus à les retaper.
+
+---
+
+## Documentation technique
+
+Les comportements non documentés de l'API ÉcoleDirecte et les pièges de
+packaging rencontrés sont consignés dans
+[`docs/ecoledirecte-api.md`](docs/ecoledirecte-api.md).
 
 ---
 
