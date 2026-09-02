@@ -9,6 +9,11 @@ const BASE_URL = "https://api.ecoledirecte.com";
 // Valeur de packageVersion du SPA courant.
 const DEFAULT_API_VERSION = "4.101.2";
 
+// Code renvoye par /v3/login.awp quand la double authentification est requise.
+const CODE_2FA_REQUIRED = 250;
+// doubleauth n'accepte que cet entete : X-Token y est rejete (code 520).
+const HEADER_2FA_TOKEN = "2FA-Token";
+
 const decodeB64 = (v) => Buffer.from(String(v || ""), "base64").toString("utf8");
 const encodeB64 = (v) => Buffer.from(String(v || ""), "utf8").toString("base64");
 
@@ -32,13 +37,20 @@ function createEdApi({ fetchImpl, readGtkCookie, apiVersion = DEFAULT_API_VERSIO
     return { json: await res.json(), headers: res.headers };
   }
 
+  // Verifie sur l'API reelle : sur un code 250, le jeton exploitable par
+  // doubleauth est celui du CORPS de reponse. La reponse porte aussi un
+  // entete x-token, mais il contient un autre jeton, que doubleauth rejette
+  // avec un code 520.
   function normalize(json, headers) {
+    const code = json.code;
     return {
-      code: json.code,
+      code,
       token: json.token || "",
       message: json.message || "",
       data: json.data || {},
-      twoFaToken: headers.get("x-token") || headers.get("2fa-token") || "",
+      twoFaToken: code === CODE_2FA_REQUIRED
+        ? json.token || headers.get("2fa-token") || ""
+        : "",
     };
   }
 
@@ -79,7 +91,7 @@ function createEdApi({ fetchImpl, readGtkCookie, apiVersion = DEFAULT_API_VERSIO
     const { json } = await post(
       "/v3/connexion/doubleauth.awp?verbe=get",
       {},
-      { "X-Token": twoFaToken }
+      { [HEADER_2FA_TOKEN]: twoFaToken }
     );
     const data = json.data || {};
     return {
@@ -93,7 +105,7 @@ function createEdApi({ fetchImpl, readGtkCookie, apiVersion = DEFAULT_API_VERSIO
     const { json } = await post(
       "/v3/connexion/doubleauth.awp?verbe=post",
       { choix: encodeB64(choix) },
-      { "X-Token": twoFaToken }
+      { [HEADER_2FA_TOKEN]: twoFaToken }
     );
     const data = json.data || {};
     return { cn: data.cn, cv: data.cv };
@@ -102,4 +114,4 @@ function createEdApi({ fetchImpl, readGtkCookie, apiVersion = DEFAULT_API_VERSIO
   return { login, relogin, get2faQuestion, send2faAnswer };
 }
 
-module.exports = { createEdApi, BASE_URL, DEFAULT_API_VERSION };
+module.exports = { createEdApi, BASE_URL, DEFAULT_API_VERSION, CODE_2FA_REQUIRED };

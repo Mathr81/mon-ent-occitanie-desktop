@@ -61,14 +61,23 @@ test("login omet fa quand il n'y a pas de cles", async () => {
   assert.equal("fa" in payload, false);
 });
 
-test("login remonte le code 250 et le token 2FA de l'entete", async () => {
+// Verifie sur l'API reelle : sur un 250 le jeton exploitable est celui du
+// CORPS de reponse. L'entete x-token en porte un autre, que doubleauth
+// rejette avec un code 520.
+test("login prend le token 2FA dans le corps, pas dans l'entete x-token", async () => {
   const { api } = makeApi([
     { body: {} },
-    { body: { code: 250, token: "", data: {} }, headers: { "x-token": "TWOFA" } },
+    { body: { code: 250, token: "TWOFA_BODY", data: {} }, headers: { "x-token": "AUTRE_JETON" } },
   ]);
   const res = await api.login({ identifiant: "u", motdepasse: "p", uuid: "U1" });
   assert.equal(res.code, 250);
-  assert.equal(res.twoFaToken, "TWOFA");
+  assert.equal(res.twoFaToken, "TWOFA_BODY");
+});
+
+test("login ne remonte pas de token 2FA quand la connexion reussit", async () => {
+  const { api } = makeApi([{ body: {} }, { body: OK_BODY }]);
+  const res = await api.login({ identifiant: "u", motdepasse: "p", uuid: "U1" });
+  assert.equal(res.twoFaToken, "");
 });
 
 test("login remonte le code 505 sans lever d'exception", async () => {
@@ -96,6 +105,21 @@ test("get2faQuestion decode le base64", async () => {
   const res = await api.get2faQuestion("TWOFA");
   assert.equal(res.question, "Question ?");
   assert.deepEqual(res.propositions, ["Oui"]);
+});
+
+// L'API rejette X-Token sur doubleauth (code 520) : seul 2FA-Token passe.
+test("get2faQuestion envoie le jeton dans l'entete 2FA-Token", async () => {
+  const { api, calls } = makeApi([{ body: { code: 200, data: { question: "", propositions: [] } } }]);
+  await api.get2faQuestion("TWOFA");
+  assert.equal(calls[0].init.headers["2FA-Token"], "TWOFA");
+  assert.equal("X-Token" in calls[0].init.headers, false);
+});
+
+test("send2faAnswer envoie le jeton dans l'entete 2FA-Token", async () => {
+  const { api, calls } = makeApi([{ body: { code: 200, data: { cn: "C", cv: "V" } } }]);
+  await api.send2faAnswer("Oui", "TWOFA");
+  assert.equal(calls[0].init.headers["2FA-Token"], "TWOFA");
+  assert.equal("X-Token" in calls[0].init.headers, false);
 });
 
 test("send2faAnswer encode le choix en base64 et renvoie cn/cv", async () => {
