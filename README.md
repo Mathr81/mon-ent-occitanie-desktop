@@ -40,6 +40,24 @@ pnpm install
 pnpm start
 ```
 
+Par défaut, `pnpm start` utilise le **même profil que l'application installée**
+(`%APPDATA%/Mon EcoleDirecte`) : la session reste donc persistante entre les
+lancements.
+
+Pour travailler sur un profil séparé — par exemple pour tester le premier
+démarrage sans identifiants — définir `ED_DEV_USER_DATA` vers un dossier
+**situé hors du dépôt** :
+
+```bash
+ED_DEV_USER_DATA=~/.ed-dev-profile pnpm start
+```
+
+Ne jamais pointer cette variable dans l'arborescence du projet : le dossier
+contient les identifiants chiffrés **et** la clé `Local State` qui permet de
+les déchiffrer. Les deux réunis annulent le chiffrement pour quiconque met la
+main sur le dossier — une sauvegarde, un dossier synchronisé ou une archive
+suffisent, `.gitignore` ne protège que de git.
+
 ### Construire l'installeur
 
 ```bash

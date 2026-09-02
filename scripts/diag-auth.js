@@ -7,16 +7,11 @@
 const { app, session, safeStorage } = require("electron");
 const path = require("path");
 
-// Resout le meme userData que l'application. On ne reutilise pas
-// resolveUserDataPath() : il s'appuie sur app.getAppPath(), qui vaut le
-// dossier du script lance et non la racine du projet. Sans setName, un
-// script lance directement retombe par ailleurs sur AppData/Roaming/Electron.
+// Sans setName, un script lance directement retombe sur
+// AppData/Roaming/Electron au lieu du profil de l'application.
 app.setName("Mon EcoleDirecte");
-const userDataPath =
-  process.env.NODE_ENV === "development"
-    ? path.join(__dirname, "..", "userData")
-    : app.getPath("userData");
-app.setPath("userData", userDataPath);
+const { resolveUserDataPath } = require("../src/main/lib/paths");
+const userDataPath = resolveUserDataPath();
 
 const { createEdApi } = require("../src/main/auth/ed-api");
 const { createCredentialsStore } = require("../src/main/auth/credentials-store");

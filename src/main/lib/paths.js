@@ -2,14 +2,31 @@ const { app } = require("electron");
 const fs = require("fs");
 const path = require("path");
 
-function resolveUserDataPath() {
-  if (process.env.NODE_ENV === "development") {
-    const dir = path.join(app.getAppPath(), "userData");
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    app.setPath("userData", dir);
-    return dir;
+// Variable d'environnement de developpement : pointe le profil Electron
+// vers un dossier HORS du depot, pour garder une session persistante sans
+// laisser d'identifiants chiffres dans l'arborescence du projet.
+const DEV_USER_DATA_ENV = "ED_DEV_USER_DATA";
+
+// Partie decidable sans Electron, donc testable.
+function chooseUserDataPath({ override, defaultPath }) {
+  if (typeof override === "string" && override.trim() !== "") {
+    return path.resolve(override.trim());
   }
-  return app.getPath("userData");
+  return defaultPath;
+}
+
+function resolveUserDataPath() {
+  const chosen = chooseUserDataPath({
+    override: process.env[DEV_USER_DATA_ENV],
+    defaultPath: app.getPath("userData"),
+  });
+
+  if (chosen !== app.getPath("userData")) {
+    if (!fs.existsSync(chosen)) fs.mkdirSync(chosen, { recursive: true });
+    app.setPath("userData", chosen);
+  }
+
+  return chosen;
 }
 
 // La sortie patchee de scripts/patch-extension.js. Jamais dans l'asar :
@@ -24,4 +41,10 @@ function getAssetPath(...segments) {
   return path.join(app.getAppPath(), "assets", ...segments);
 }
 
-module.exports = { resolveUserDataPath, getCustomExtensionPath, getAssetPath };
+module.exports = {
+  chooseUserDataPath,
+  resolveUserDataPath,
+  getCustomExtensionPath,
+  getAssetPath,
+  DEV_USER_DATA_ENV,
+};
