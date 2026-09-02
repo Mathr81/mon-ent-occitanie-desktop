@@ -21,6 +21,7 @@ const {
   messagerieBadgeCount,
 } = require("./auth/session-payload");
 
+const LOADING_PAGE = path.join(__dirname, "..", "renderer", "loading", "loading.html");
 const HOME_URL = "https://www.ecoledirecte.com/Accueil";
 const LOGIN_URL = "https://www.ecoledirecte.com/login?cameFrom=%2FAccueil";
 
@@ -50,6 +51,22 @@ function setSessionSeed(state, faKeys) {
 ipcMain.on("ed:session-seed", (event) => {
   event.returnValue = currentSessionSeed;
 });
+
+// =========================
+// ECRAN D'ATTENTE
+// =========================
+
+// La fenetre principale est sandboxee : elle n'a pas ipcRenderer. On pilote
+// donc le texte depuis ici.
+function setLoadingStatus(mainWindow, text) {
+  if (mainWindow.isDestroyed()) return;
+  mainWindow.webContents.executeJavaScript(`
+    (() => {
+      const el = document.getElementById('status');
+      if (el) el.textContent = ${JSON.stringify(text)};
+    })()
+  `).catch(() => {});
+}
 
 // =========================
 // BANDEAU D'AVERTISSEMENT
@@ -256,10 +273,18 @@ async function main() {
 
   setupReloginOnRedirect(mainWindow, deps);
 
-  // L'authentification a lieu AVANT toute navigation : le preload trouve
-  // ainsi la session prete et l'ecrit avant le boot d'Angular.
+  // Sans cela la fenetre reste blanche pendant toute l'authentification puis
+  // le chargement du site, soit environ trois secondes ou l'application
+  // parait figee. L'ecran sert aussi d'arriere-plan aux fenetres de
+  // connexion et de double authentification.
+  await mainWindow.loadFile(LOADING_PAGE);
+  setLoadingStatus(mainWindow, "Authentification…");
+
+  // L'authentification a lieu AVANT toute navigation vers le site : le
+  // preload trouve ainsi la session prete et l'ecrit avant le boot d'Angular.
   const state = await ensureAuthenticated(mainWindow, deps);
 
+  setLoadingStatus(mainWindow, "Chargement d'ÉcoleDirecte…");
   await mainWindow.loadURL(state ? HOME_URL : LOGIN_URL);
 
   // Si l'injection de session avait echoue, le SPA nous renverrait ici

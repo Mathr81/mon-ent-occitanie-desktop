@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Mon ÉcoleDirecte</title>
+    <link rel="stylesheet" href="../shared/tokens.css" />
+    <link rel="stylesheet" href="../shared/base.css" />
+    <style>
+      /* Ecran d'attente : centre dans la fenetre principale, qui est large.
+       * On ne reprend donc pas l'ossature .ed-window alignee a gauche. */
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-top: 3px solid var(--ed-accent);
+      }
+
+      .ed-splash {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--ed-gap);
+        width: 260px;
+        text-align: center;
+      }
+
+      .ed-splash__name {
+        font-size: var(--ed-title-size);
+        font-weight: var(--ed-title-weight);
+      }
+
+      .ed-splash__status {
+        font-size: var(--ed-font-size-sm);
+        color: var(--ed-text-muted);
+        min-height: var(--ed-line-height);
+      }
+
+      /* Barre indeterminee : on ne connait pas la duree du login ni celle du
+       * chargement du site. Fonctionnelle, pas decorative. */
+      .ed-splash__track {
+        width: 100%;
+        height: 3px;
+        background: var(--ed-border);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+
+      .ed-splash__bar {
+        width: 40%;
+        height: 100%;
+        background: var(--ed-accent);
+        border-radius: 2px;
+        animation: ed-slide 1.4s ease-in-out infinite;
+      }
+
+      @keyframes ed-slide {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(250%); }
+      }
+
+      /* Respecte le reglage systeme de reduction des animations. */
+      @media (prefers-reduced-motion: reduce) {
+        .ed-splash__bar {
+          animation: none;
+          width: 100%;
+          opacity: 0.4;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ed-splash">
+      <div class="ed-splash__name">Mon ÉcoleDirecte</div>
+      <div class="ed-splash__track"><div class="ed-splash__bar"></div></div>
+      <!-- Le texte est pilote depuis le processus principal, par
+           executeJavaScript : la fenetre principale est sandboxee et n'a pas
+           acces a ipcRenderer. -->
+      <div class="ed-splash__status" id="status">Démarrage…</div>
+    </div>
+  </body>
+</html>

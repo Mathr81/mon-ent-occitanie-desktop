@@ -1,8 +1,8 @@
 {
   "name": "ecole-directe-desktop",
   "productName": "Mon EcoleDirecte",
-  "version": "1.4.8",
-  "description": "Une application permettant de se connecter automatiquement à école directe",
+  "version": "2.0.0",
+  "description": "Une application desktop pour ÉcoleDirecte, avec authentification par API",
   "main": "src/main/index.js",
   "scripts": {
     "start": "cross-env NODE_ENV=development electron .",

@@ -13,6 +13,7 @@ entièrement par l'API ÉcoleDirecte, sans navigateur piloté.
 - **Double authentification** — si ÉcoleDirecte pose sa question de vérification, l'application l'affiche et mémorise la réponse pour les connexions suivantes
 - **Re-login automatique** — si la session expire, l'application se réauthentifie seule, avec une garde de 3 tentatives et un délai croissant pour ne jamais boucler
 - **Support d'extensions** — chargement automatique de l'extension [CustomDirecte](https://github.com/Bottersnike/CustomDirecte) pour améliorer l'interface d'ÉcoleDirecte
+- **Écran de démarrage** — l'application indique ce qu'elle fait pendant l'authentification et le chargement du site, au lieu d'une fenêtre blanche
 - **Badge de notifications** — le nombre de notifications non lues s'affiche sur l'icône dans la barre des tâches Windows
 - **Liens externes dans une popup intégrée** — les liens ouverts depuis ÉcoleDirecte s'affichent dans une mini-fenêtre avec barre d'outils (copier l'URL, ouvrir dans le navigateur)
 - **Raccourcis clavier** — `F5` / `Ctrl+R` pour recharger, `F12` pour les DevTools, `Alt+←/→` pour naviguer dans l'historique

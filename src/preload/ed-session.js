@@ -6,6 +6,12 @@
 const { ipcRenderer } = require("electron");
 
 try {
+  // L'ecran d'attente est une page file:// : on ne seme que sur l'origine
+  // EcoleDirecte, sinon on ecrirait la session dans un storage sans rapport.
+  if (!location.hostname.endsWith("ecoledirecte.com")) {
+    throw new Error("origine hors EcoleDirecte, amorçage ignoré");
+  }
+
   const isLoginUrl = location.pathname.toLowerCase().startsWith("/login");
   const hasSession = sessionStorage.getItem("credentials") !== null;
 
@@ -27,5 +33,5 @@ try {
 } catch (err) {
   // Un preload qui leve empeche la page de se charger. On degrade
   // silencieusement vers le formulaire de login normal.
-  console.error("[ed-session] amorcage impossible :", err && err.message);
+  console.debug("[ed-session]", err && err.message);
 }
