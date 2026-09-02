@@ -116,6 +116,39 @@ C'est ce qui rend l'injection de session possible sans piloter le DOM.
 `{ code: "MESSAGERIE", badge: N }` — la valeur qu'affiche la pastille du menu
 latéral. Inutile de scruter le DOM pour la valeur initiale.
 
+### Ce qui reste non vérifié sur le badge
+
+Le compteur affiché en continu est en revanche relevé dans le DOM, et cette
+partie n'a **jamais pu être vérifiée sur une vraie notification** : le compte
+de test n'en a aucune, les quatre sélecteurs remontent donc systématiquement
+zéro élément.
+
+Ce qui est vérifié (`scripts/diag-badge.js`) :
+
+- **transport** — fabrication de l'image et pose de l'overlay, avec une
+  valeur en dur ;
+- **collecte** — les sélecteurs, en injectant de faux nœuds dans une page
+  vierge : un nœud `7` donne 7, deux nœuds `4` et `5` donnent 9, une page
+  vide donne 0 et retire l'overlay.
+
+Ce qui ne l'est pas : que ces sélecteurs correspondent au DOM réel
+d'ÉcoleDirecte quand une notification existe. Les sélecteurs concernés,
+essayés dans cet ordre :
+
+```
+#menuId-5618 > li:nth-child(5) > ed-menu-block-item > div > a > span.badge.alert-danger.ed-menu-badge
+span.badge.alert-danger.ed-menu-badge
+.badge.alert-danger
+.ed-menu-badge
+```
+
+Le premier est particulièrement fragile : `menuId-5618` est un identifiant
+d'établissement, il ne vaudra pas la même chose ailleurs. Les trois suivants
+servent de repli.
+
+À revérifier dès qu'une vraie notification est disponible. La valeur initiale,
+elle, vient de l'API et ne dépend d'aucun sélecteur.
+
 ---
 
 ## Packaging : `package.json` a la priorité sur `electron-builder.yml`
