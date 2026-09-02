@@ -39,7 +39,14 @@
       "repo": "ecole-directe-desktop"
     },
     "win": {
-      "target": "nsis",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "assets/icons/icon.ico"
     },
     "nsis": {
