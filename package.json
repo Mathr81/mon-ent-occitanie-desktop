@@ -21,13 +21,18 @@
   "dependencies": {
     "canvas": "^3.2.3",
     "electron-chrome-extensions": "^4.9.0",
-    "electron-updater": "^6.3.9"
+    "electron-updater": "^6.8.9"
+  },
+  "pnpm": {
+    "overrides": {
+      "node-abi": "^4.35.0"
+    }
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
     "cross-env": "^10.1.0",
-    "electron": "^42.0.1",
-    "electron-builder": "^26.8.1"
+    "electron": "^44.1.1",
+    "electron-builder": "^26.15.3"
   },
   "build": {
     "appId": "desktop.ecole-directe.app",

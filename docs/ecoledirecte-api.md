@@ -185,3 +185,37 @@ lancé directement (`electron scripts/diag-auth.js`) il vaut le dossier du
 script. Un utilitaire qui doit retrouver le profil de l'application ne peut
 donc pas s'appuyer dessus, et doit en outre appeler `app.setName()`, faute de
 quoi il retombe sur `AppData/Roaming/Electron`.
+
+## Monter de version Electron casse `install-app-deps` tant que `node-abi` retarde
+
+Le `postinstall` lance `electron-builder install-app-deps`, qui délègue à
+`@electron/rebuild`, qui interroge `node-abi` pour connaître l'ABI de la
+version d'Electron visée. La copie de `node-abi` embarquée par
+`@electron/rebuild` est souvent en retard de quelques versions : au moment du
+passage à Electron 44 elle était en 4.31.0, qui ne connaissait pas encore
+l'ABI 149, et l'installation échouait avec un `getAbi` en erreur — pnpm
+annulait alors la mise à jour de `package.json`.
+
+Le correctif est une surcharge dans `package.json` :
+
+```json
+"pnpm": { "overrides": { "node-abi": "^4.35.0" } }
+```
+
+À relever pour chaque montée majeure d'Electron. Elle est sans effet sur
+`canvas`, seul module natif du projet : il est compilé en N-API 7, donc
+stable d'une ABI à l'autre — c'est uniquement l'interrogation de `node-abi`
+qui échouait, pas la recompilation.
+
+## `ELECTRON_RUN_AS_NODE` traîne dans certains terminaux
+
+VS Code exporte `ELECTRON_RUN_AS_NODE=1` dans l'environnement de ses
+terminaux intégrés. Un `electron .` lancé depuis là démarre en Node pur :
+`process.type` vaut `undefined` et `require("electron")` ne renvoie plus le
+module intégré mais la chaîne exportée par le paquet npm, c'est-à-dire le
+chemin du binaire. Le symptôme est un `Cannot read properties of undefined`
+sur `app`, `BrowserWindow` ou n'importe quel export, souvent depuis un module
+de `node_modules` — ce qui fait accuser à tort la dépendance ou la version
+d'Electron.
+
+Lancer avec `env -u ELECTRON_RUN_AS_NODE …` pour trancher.
