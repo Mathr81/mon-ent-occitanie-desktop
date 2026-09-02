@@ -13,6 +13,10 @@ const { registerGlobalShortcuts, unregisterAll } = require("./features/shortcuts
 const { startBadgePolling, stopBadgePolling } = require("./features/badge");
 const { createMainWindow } = require("./windows/main-window");
 const { createLoginWindow } = require("./windows/login-window");
+const {
+  toSessionStorageEntries,
+  toLocalStorageEntries,
+} = require("./auth/session-payload");
 
 // =========================
 // CHEMINS ET LOGGING
@@ -81,6 +85,22 @@ function storeCredentials(username, password) {
     console.error("Erreur sauvegarde credentials :", err);
   }
 }
+
+// =========================
+// AMORCAGE DE SESSION (lu par src/preload/ed-session.js)
+// =========================
+
+let currentSessionSeed = null;
+
+function setSessionSeed(state, faKeys) {
+  currentSessionSeed = state
+    ? { session: toSessionStorageEntries(state), local: toLocalStorageEntries(faKeys) }
+    : null;
+}
+
+ipcMain.on("ed:session-seed", (event) => {
+  event.returnValue = currentSessionSeed;
+});
 
 // =========================
 // UTILS

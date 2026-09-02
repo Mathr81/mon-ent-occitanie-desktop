@@ -14,6 +14,7 @@ function createMainWindow() {
       sandbox: true,
       contextIsolation: true,
       devTools: true,
+      preload: path.join(__dirname, "..", "..", "preload", "ed-session.js"),
     },
   });
 
