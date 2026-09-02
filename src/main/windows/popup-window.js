@@ -1,7 +1,7 @@
 const { BrowserWindow, clipboard, ipcMain, screen } = require("electron");
 const path = require("path");
 const { getAssetPath } = require("../lib/paths");
-const { registerNavigationShortcuts } = require("../features/shortcuts");
+const { registerWindowShortcuts } = require("../features/shortcuts");
 const { loadWindowState, saveWindowState } = require("../lib/window-state");
 
 const MIN_WIDTH = 520;
@@ -55,11 +55,6 @@ function createPopupWindow(url) {
     popup.webContents.send("load-url", url);
   });
 
-  const openDevTools = () => {
-    if (!popup.isDestroyed()) popup.webContents.openDevTools({ mode: "detach" });
-  };
-  ipcMain.on("popup-devtools", openDevTools);
-
   // La copie passe par le processus principal : Electron 44 a retire le
   // module clipboard des renderers (navigator.clipboard reste, mais depend
   // d'une activation utilisateur et d'une permission).
@@ -68,12 +63,9 @@ function createPopupWindow(url) {
   };
   ipcMain.on("popup-copy-url", copyUrl);
 
-  popup.on("closed", () => {
-    ipcMain.removeListener("popup-devtools", openDevTools);
-    ipcMain.removeListener("popup-copy-url", copyUrl);
-  });
+  popup.on("closed", () => ipcMain.removeListener("popup-copy-url", copyUrl));
 
-  registerNavigationShortcuts(popup);
+  registerWindowShortcuts(popup);
 
   popup.on("resize", () => {
     if (popup.isDestroyed() || popup.isMaximized() || popup.isMinimized()) return;

@@ -168,13 +168,11 @@
         window.close();
       });
 
+      // Rechargement, outils et navigation sont geres dans le processus
+      // principal (features/shortcuts.js) : ils repondent aussi quand le
+      // focus est dans la <webview>, ce qui n'etait pas le cas ici.
       document.addEventListener("keydown", (e) => {
-        if (e.key === "F5") wv.reload();
-        if (e.key === "F12") ipcRenderer.send("popup-devtools");
-        if ((e.ctrlKey || e.metaKey) && e.key === "r") wv.reload();
-        if (e.altKey && e.key === "ArrowLeft") wv.goBack();
-        if (e.altKey && e.key === "ArrowRight") wv.goForward();
-        if (e.ctrlKey && e.key === "l") copyUrl();
+        if ((e.ctrlKey || e.metaKey) && e.key === "l") copyUrl();
       });
     </script>
   </body>

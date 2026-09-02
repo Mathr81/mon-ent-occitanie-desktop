@@ -219,3 +219,22 @@ de `node_modules` — ce qui fait accuser à tort la dépendance ou la version
 d'Electron.
 
 Lancer avec `env -u ELECTRON_RUN_AS_NODE …` pour trancher.
+
+## `globalShortcut` refuse F5, F12 et Ctrl+R sous Windows
+
+`globalShortcut.register()` renvoie `false` — sans lever d'erreur — pour
+`F5`, `F12` et `CommandOrControl+R`, alors qu'il accepte `Alt+Left` et
+`Alt+Right`. D'où un jeu de raccourcis à moitié fonctionnel, sans rien dans
+la console pour le signaler : `register()` ne rapporte son échec que par sa
+valeur de retour, qu'on ne lit jamais.
+
+Ce n'était de toute façon pas le bon outil. `globalShortcut` enregistre des
+hotkeys au niveau du système : les accélérateurs restent confisqués aux
+autres applications même quand la fenêtre n'a pas le focus. Pour des
+raccourcis d'application, `webContents.on("before-input-event")` est la voie
+correcte.
+
+Un piège s'y ajoute : **les frappes faites dans une `<webview>` ne remontent
+pas au `webContents` de la fenêtre.** Il faut attacher l'écouteur au guest,
+récupéré par `did-attach-webview`, faute de quoi les raccourcis de la fenêtre
+popup cessent de répondre dès qu'on clique dans la page.

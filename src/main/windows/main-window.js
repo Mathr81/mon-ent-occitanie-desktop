@@ -1,7 +1,7 @@
 const { BrowserWindow, session } = require("electron");
 const path = require("path");
 const { getAssetPath } = require("../lib/paths");
-const { registerNavigationShortcuts } = require("../features/shortcuts");
+const { registerWindowShortcuts } = require("../features/shortcuts");
 const { createPopupWindow } = require("./popup-window");
 
 function createMainWindow() {
@@ -56,7 +56,7 @@ function createMainWindow() {
     `).catch(() => {});
   });
 
-  registerNavigationShortcuts(mainWindow);
+  registerWindowShortcuts(mainWindow);
 
   return mainWindow;
 }

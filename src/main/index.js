@@ -6,7 +6,6 @@ const { resolveUserDataPath } = require("./lib/paths");
 const { initLogger } = require("./lib/logger");
 const { loadCustomExtension } = require("./features/extensions");
 const { setupAutoUpdater } = require("./features/updater");
-const { registerGlobalShortcuts, unregisterAll } = require("./features/shortcuts");
 const { startBadgePolling, stopBadgePolling, applyBadge } = require("./features/badge");
 const { createMainWindow } = require("./windows/main-window");
 const { createLoginWindow } = require("./windows/login-window");
@@ -269,7 +268,6 @@ async function main() {
   extensions.addTab(mainWindow.webContents, mainWindow);
 
   Menu.setApplicationMenu(null);
-  registerGlobalShortcuts();
 
   setupReloginOnRedirect(mainWindow, deps);
 
@@ -330,11 +328,9 @@ if (!app.requestSingleInstanceLock()) {
 
 app.on("window-all-closed", () => {
   stopBadgePolling();
-  unregisterAll();
   if (process.platform !== "darwin") app.quit();
 });
 
 app.on("will-quit", () => {
   stopBadgePolling();
-  unregisterAll();
 });
