@@ -238,3 +238,58 @@ Un piège s'y ajoute : **les frappes faites dans une `<webview>` ne remontent
 pas au `webContents` de la fenêtre.** Il faut attacher l'écouteur au guest,
 récupéré par `did-attach-webview`, faute de quoi les raccourcis de la fenêtre
 popup cessent de répondre dès qu'on clique dans la page.
+
+## L'expiration de session est lisible dans l'en-tête `x-code`
+
+L'API répond `HTTP 200` avec le code métier dans le corps, mais elle le pose
+**aussi** dans un en-tête de réponse. Vérifié contre le service réel avec un
+jeton bidon :
+
+```
+HTTP/1.1 200 OK
+x-code: 520
+{"code":520, "token":"", "message":"Token invalide !", "data":{…}}
+```
+
+C'est ce qui permet de détecter l'expiration depuis
+`session.webRequest.onHeadersReceived`, sans injecter de code dans la page ni
+dépendre du DOM du site. Les codes concernés sont **520** (« Token
+invalide ») et **525**, que le SPA traite ensemble sous `AccessTokenInvalid`.
+
+La table complète des en-têtes utilisés par le SPA :
+
+```js
+{ token: "X-Token", code: "X-Code", wopiToken: "WOPI-Token",
+  streamToken: "STREAM-Token", twoFAToken: "2FA-Token",
+  authUserInfos: "X-WithAuthUserInfos", cache: "X-WithCacheContext" }
+```
+
+## Le SPA tente son propre rafraîchissement avant d'afficher sa modale
+
+Son intercepteur HTTP, sur `AccessTokenInvalid`, appelle d'abord
+`authService.refreshToken({...credentialsStore.credentials, uuid})` —
+une seule tentative, `RETRY_ATTEMPT = 1`. Le corps envoyé est celui que
+décrit BlocksDirecte :
+
+```js
+{ identifiant, typeCompte, motdepasse: "???", accesstoken, isReLogin: true }
+```
+
+Cet objet n'est **pas** persisté : il vit dans un champ privé du
+`CredentialsStore`, reconstruit à l'hydratation par
+`authStore.setAuthStore()` → `credentialsStore.updateCredentials(currentUser)`
+à partir de `accounts[].identifiant`, `accounts[].typeCompte` et
+`accounts[].accessToken`. Ces trois champs viennent de la réponse de login,
+que l'on recopie telle quelle : le rafraîchissement du site reste donc
+possible après notre amorçage.
+
+Ce n'est que si ce rafraîchissement échoue que le SPA émet
+`user:access-token-invalid` et affiche « Votre session est invalide ou
+expirée, identifiez-vous à nouveau ».
+
+**Conséquence pour nous** : réagir au premier code d'expiration
+rechargerait la page alors que le site allait se rattraper seul. D'où la
+temporisation de `auth/expiry-watcher.js` — un code d'expiration arme, une
+réponse saine désarme, un second déclenche tout de suite. Et d'où
+l'exclusion de `login.awp` et `doubleauth` : c'est par là que passe le
+rafraîchissement du site, et sa réponse d'échec ne doit surtout pas désarmer.

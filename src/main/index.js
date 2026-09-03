@@ -13,6 +13,7 @@ const { createTwoFaWindow } = require("./windows/twofa-window");
 const { createEdApi } = require("./auth/ed-api");
 const { createAuthFlow } = require("./auth/auth-flow");
 const { createReloginGuard } = require("./auth/relogin-guard");
+const { createExpiryWatcher, readApiCode, GRACE_MS } = require("./auth/expiry-watcher");
 const { createCredentialsStore } = require("./auth/credentials-store");
 const {
   toSessionStorageEntries,
@@ -113,12 +114,57 @@ function showAuthBanner(mainWindow, code) {
   `).catch(() => {});
 }
 
+// Bandeau d'information, meme ossature que le bandeau d'erreur mais aux
+// couleurs de l'accent : ce n'est pas une panne, juste une attente. Sans
+// lui, la page se rechargerait sans explication au milieu de la session.
+const AUTH_NOTICE_STYLE = [
+  "position:fixed",
+  "top:0",
+  "left:0",
+  "right:0",
+  "z-index:99999",
+  "padding:8px 12px",
+  "color:#ffffff",                      // --ed-text-on-accent
+  "background:#0f8fd1",                 // --ed-accent
+  "font-family:Tahoma,Helvetica,Arial,sans-serif", // --ed-font
+  "font-size:12px",                     // --ed-font-size-sm
+  "text-align:center",
+].join(";");
+
+function showAuthNotice(mainWindow, message) {
+  if (mainWindow.isDestroyed()) return;
+  mainWindow.webContents.executeJavaScript(`
+    (() => {
+      let notice = document.getElementById('ed-auth-notice');
+      if (!notice) {
+        notice = document.createElement('div');
+        notice.id = 'ed-auth-notice';
+        notice.style.cssText = ${JSON.stringify(AUTH_NOTICE_STYLE)};
+        document.body.appendChild(notice);
+      }
+      notice.textContent = ${JSON.stringify(message)};
+    })()
+  `).catch(() => {});
+}
+
 function clearAuthBanner(mainWindow) {
   if (mainWindow.isDestroyed()) return;
   mainWindow.webContents.executeJavaScript(`
     (() => {
       const banner = document.getElementById('ed-auth-banner');
       if (banner) banner.remove();
+    })()
+  `).catch(() => {});
+}
+
+// Le rechargement emporte le bandeau avec la page ; cette fonction ne sert
+// donc qu'au cas ou la reprise echoue et ou l'on reste sur place.
+function clearAuthNotice(mainWindow) {
+  if (mainWindow.isDestroyed()) return;
+  mainWindow.webContents.executeJavaScript(`
+    (() => {
+      const notice = document.getElementById('ed-auth-notice');
+      if (notice) notice.remove();
     })()
   `).catch(() => {});
 }
@@ -232,6 +278,120 @@ function setupReloginOnRedirect(mainWindow, deps) {
 }
 
 // =========================
+// REPRISE SUR SESSION EXPIREE
+// =========================
+
+// EcoleDirecte est un SPA : quand le jeton meurt pendant une periode
+// d'inactivite, il n'y a aucune navigation a intercepter. Le site affiche sa
+// propre modale « Votre session est invalide ou expiree, identifiez-vous a
+// nouveau », qui redemande le mot de passe. On la devance.
+
+const ED_ORIGIN = "https://www.ecoledirecte.com/";
+
+// Ecrit la session fraiche dans la page avant de la recharger. Le
+// sessionStorage survit a un rechargement dans le meme onglet : au reboot
+// d'Angular, l'hydratation trouve donc le nouveau jeton. Le preload voit une
+// session valide et n'a rien a re-semer.
+async function writeSessionIntoPage(mainWindow, state, faKeys) {
+  const seed = {
+    session: toSessionStorageEntries(state),
+    local: toLocalStorageEntries(faKeys),
+  };
+
+  await mainWindow.webContents.executeJavaScript(`
+    (() => {
+      const seed = ${JSON.stringify(seed)};
+      for (const [key, value] of Object.entries(seed.session)) {
+        sessionStorage.setItem(key, value);
+      }
+      for (const [key, value] of Object.entries(seed.local)) {
+        localStorage.setItem(key, value);
+      }
+    })()
+  `);
+}
+
+function setupExpiryRecovery(mainWindow, deps) {
+  const watcher = createExpiryWatcher();
+  let timer = null;
+  let inProgress = false;
+
+  const cancelTimer = () => {
+    if (timer === null) return;
+    clearTimeout(timer);
+    timer = null;
+  };
+
+  async function recover() {
+    cancelTimer();
+    if (inProgress || mainWindow.isDestroyed()) return;
+
+    if (!deps.reloginGuard.shouldRetry()) {
+      console.error("Session expirée : trop de tentatives, reprise abandonnée.");
+      showAuthBanner(mainWindow, "TROP_DE_TENTATIVES");
+      return;
+    }
+
+    inProgress = true;
+    try {
+      // On revient sur la page ou l'utilisateur se trouvait, pas sur
+      // l'accueil. Si l'on n'est pas sur le site — ecran d'attente encore
+      // affiche, par exemple — l'accueil est le seul repli sensé.
+      const current = mainWindow.webContents.getURL();
+      const target = current.startsWith(ED_ORIGIN) ? current : HOME_URL;
+
+      console.log("Session expirée détectée, réauthentification par API.");
+      showAuthNotice(mainWindow, "Session expirée, reconnexion…");
+      deps.reloginGuard.recordAttempt();
+
+      const state = await ensureAuthenticated(mainWindow, deps);
+      if (!state) {
+        clearAuthNotice(mainWindow);
+        showAuthBanner(mainWindow, "SESSION_EXPIREE");
+        return;
+      }
+
+      await writeSessionIntoPage(mainWindow, state, deps.credentialsStore.read().faKeys);
+      await mainWindow.loadURL(target);
+
+      clearAuthBanner(mainWindow);
+      applyBadge(messagerieBadgeCount(state), mainWindow);
+      console.log("Session rétablie sans intervention.");
+    } catch (err) {
+      console.error("Reprise sur session expirée impossible :", err.message);
+      clearAuthNotice(mainWindow);
+      showAuthBanner(mainWindow, "SESSION_EXPIREE");
+    } finally {
+      inProgress = false;
+      watcher.reset();
+    }
+  }
+
+  session.defaultSession.webRequest.onHeadersReceived(
+    { urls: ["*://api.ecoledirecte.com/*"] },
+    (details, callback) => {
+      // Rendre la main tout de suite : la reponse ne doit pas attendre.
+      callback({});
+
+      const action = watcher.note({ url: details.url, code: readApiCode(details.responseHeaders) });
+
+      if (action === "arm") {
+        cancelTimer();
+        timer = setTimeout(() => {
+          if (watcher.graceElapsed() === "fire") recover();
+        }, GRACE_MS);
+      } else if (action === "cancel") {
+        cancelTimer();
+      } else if (action === "fire") {
+        recover();
+      }
+    }
+  );
+
+  mainWindow.on("closed", cancelTimer);
+}
+
+// =========================
 // MAIN
 // =========================
 
@@ -270,6 +430,7 @@ async function main() {
   Menu.setApplicationMenu(null);
 
   setupReloginOnRedirect(mainWindow, deps);
+  setupExpiryRecovery(mainWindow, deps);
 
   // Sans cela la fenetre reste blanche pendant toute l'authentification puis
   // le chargement du site, soit environ trois secondes ou l'application
