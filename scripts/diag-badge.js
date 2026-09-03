@@ -6,19 +6,37 @@
 //
 //   1. TRANSPORT — fabrication de l'image et pose de l'overlay. Teste avec
 //      une valeur en dur, sans dependre d'EcoleDirecte.
-//   2. COLLECTE  — les selecteurs CSS. Testes en injectant un faux noeud
-//      correspondant dans une page vierge.
+//   2. COLLECTE  — la lecture du store du SPA dans le sessionStorage de la
+//      page, exercee sur une valeur injectee dans une page vierge.
 //
-// Ce que ce script ne peut PAS verifier : que les selecteurs correspondent
-// au DOM reel d'EcoleDirecte lorsqu'une vraie notification existe. Voir
-// docs/ecoledirecte-api.md.
+// La collecte ne repose plus sur des selecteurs CSS : le parsing est une
+// fonction pure couverte par test/session-payload.test.js. Ce script verifie
+// le raccordement, c'est-a-dire qu'on lit bien la bonne cle au bon endroit.
 const { app, BrowserWindow } = require("electron");
-const { applyBadge, updateBadge } = require("../src/main/features/badge");
+const path = require("path");
+const { applyBadge, createBadgeState, nextRemoteDelay,
+        REMOTE_BASE_MS, REMOTE_JITTER_MS } = require("../src/main/features/badge");
+const { messagerieBadgeFromStoredAccounts } = require("../src/main/auth/session-payload");
 
 const log = (...a) => process.stdout.write("[badge] " + a.join(" ") + "\n");
 const HOLD_MS = 15000;
 
 app.setName("Mon EcoleDirecte");
+
+// Meme forme que ce qu'ecrit le SPA : enveloppe { payload, lastModified }.
+function fakeAccounts(badge) {
+  return JSON.stringify({
+    payload: {
+      accounts: [{
+        id: 5618,
+        typeCompte: "E",
+        current: true,
+        modules: [{ code: "MESSAGERIE", enable: true, badge }],
+      }],
+    },
+    lastModified: Date.now(),
+  });
+}
 
 app.whenReady().then(async () => {
   const win = new BrowserWindow({
@@ -27,11 +45,12 @@ app.whenReady().then(async () => {
     title: "Diagnostic badge",
     webPreferences: { contextIsolation: true },
   });
-  await win.loadURL("about:blank");
+  // Une vraie origine est indispensable : sur about:blank comme sur une URL
+  // data:, l'origine est opaque et l'acces au sessionStorage leve.
+  await win.loadFile(path.join(__dirname, "..", "src", "renderer", "loading", "loading.html"));
 
   // ---- 1. TRANSPORT ----
   log("--- transport ---");
-  const { nativeImage } = require("electron");
   const canvasOk = (() => {
     try { require("canvas"); return true; } catch { return false; }
   })();
@@ -45,32 +64,54 @@ app.whenReady().then(async () => {
   // ---- 2. COLLECTE ----
   log("--- collecte ---");
 
-  // Faux noeud correspondant au 4e selecteur de la liste.
-  await win.webContents.executeJavaScript(`
-    document.body.innerHTML = '<span class="ed-menu-badge">7</span>';
-    true
-  `);
-  await updateBadge(win.webContents, win);
-  const seen = await win.webContents.executeJavaScript(
-    `document.querySelectorAll(".ed-menu-badge").length`
+  const readFromPage = async () => {
+    const raw = await win.webContents.executeJavaScript('sessionStorage.getItem("accounts")');
+    return messagerieBadgeFromStoredAccounts(raw);
+  };
+
+  log("store absent           :", JSON.stringify(await readFromPage()),
+      (await readFromPage()) === null ? "OK (null, pas 0)" : "ECHEC");
+
+  await win.webContents.executeJavaScript(
+    `sessionStorage.setItem("accounts", ${JSON.stringify(fakeAccounts(7))}); true`
   );
-  log("noeud injecte trouve   :", seen, seen === 1 ? "OK" : "ECHEC");
+  const sept = await readFromPage();
+  log("store a 7              :", sept, sept === 7 ? "OK" : "ECHEC");
 
-  // Deux noeuds : le comptage doit additionner.
-  await win.webContents.executeJavaScript(`
-    document.body.innerHTML =
-      '<span class="ed-menu-badge">4</span><span class="ed-menu-badge">5</span>';
-    true
-  `);
-  await updateBadge(win.webContents, win);
-  log("deux noeuds 4 + 5      : le scrutage doit relever 9 (voir [BADGE] ci-dessus)");
+  await win.webContents.executeJavaScript(
+    `sessionStorage.setItem("accounts", ${JSON.stringify(fakeAccounts(0))}); true`
+  );
+  const zero = await readFromPage();
+  log("store a 0              :", zero, zero === 0 ? "OK" : "ECHEC");
 
-  // Page vide : le compteur doit retomber a zero.
-  await win.webContents.executeJavaScript(`document.body.innerHTML = ''; true`);
-  await updateBadge(win.webContents, win);
-  log("page vide              : le scrutage doit relever 0");
+  await win.webContents.executeJavaScript(
+    `sessionStorage.setItem("accounts", "pas du json"); true`
+  );
+  const casse = await readFromPage();
+  log("store illisible        :", JSON.stringify(casse),
+      casse === null ? "OK (null, pas 0)" : "ECHEC");
 
-  // On repose une valeur visible pour le controle a l'oeil.
+  // ---- 3. CONSERVATION ----
+  // Le coeur de la correction : un echec de lecture ne doit pas effacer un
+  // compteur juste.
+  log("--- conservation ---");
+  const state = createBadgeState(0);
+  state.next(7);
+  const garde = state.next(null);
+  log("7 puis lecture nulle   :", garde, garde === 7 ? "OK (valeur conservee)" : "ECHEC");
+  const remis = state.next(0);
+  log("puis un vrai 0         :", remis, remis === 0 ? "OK (0 explicite accepte)" : "ECHEC");
+
+  // ---- 4. CADENCE ----
+  log("--- cadence ---");
+  const min = Math.round((REMOTE_BASE_MS - REMOTE_JITTER_MS) / 60000);
+  const max = Math.round((REMOTE_BASE_MS + REMOTE_JITTER_MS) / 60000);
+  const tirages = Array.from({ length: 8 }, () => Math.round(nextRemoteDelay() / 60000));
+  log(`fenetre attendue       : ${min} a ${max} min`);
+  log("huit tirages (min)     :", tirages.join(", "));
+  log("tous dans la fenetre   :",
+      tirages.every((d) => d >= min && d <= max) ? "OK" : "ECHEC");
+
   applyBadge(3, win);
   log("");
   log(`>>> REGARDE LA BARRE DES TACHES : une pastille "3" doit etre visible`);

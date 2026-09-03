@@ -58,8 +58,31 @@ function messagerieBadgeCount(state) {
   return mod && typeof mod.badge === "number" ? mod.badge : 0;
 }
 
+/**
+ * Meme compteur, mais lu dans le sessionStorage de la page plutot que dans
+ * une reponse de login : c'est la source gratuite, sans requete.
+ *
+ * `raw` est la valeur brute de sessionStorage["accounts"], enveloppe
+ * { payload, lastModified } comprise. Renvoie null — et non zero — des que
+ * la valeur est absente ou illisible : un echec de lecture ne doit jamais
+ * effacer un compteur juste.
+ */
+function messagerieBadgeFromStoredAccounts(raw) {
+  if (typeof raw !== "string" || raw === "") return null;
+
+  try {
+    const parsed = JSON.parse(raw);
+    const accounts = parsed && parsed.payload ? parsed.payload.accounts : null;
+    if (!Array.isArray(accounts) || accounts.length === 0) return null;
+    return messagerieBadgeCount({ accounts });
+  } catch {
+    return null;
+  }
+}
+
 module.exports = {
   buildSessionState,
+  messagerieBadgeFromStoredAccounts,
   toSessionStorageEntries,
   toLocalStorageEntries,
   messagerieBadgeCount,

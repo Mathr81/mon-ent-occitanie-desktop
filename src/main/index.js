@@ -19,6 +19,7 @@ const {
   toSessionStorageEntries,
   toLocalStorageEntries,
   messagerieBadgeCount,
+  messagerieBadgeFromStoredAccounts,
 } = require("./auth/session-payload");
 
 const LOADING_PAGE = path.join(__dirname, "..", "renderer", "loading", "loading.html");
@@ -392,6 +393,47 @@ function setupExpiryRecovery(mainWindow, deps) {
 }
 
 // =========================
+// LECTURE DU BADGE
+// =========================
+
+// Source gratuite : le store du SPA, deja dans la page. Il ne bouge que
+// quand le site se reconnecte de lui-meme, mais ca ne coute rien de le lire.
+async function readBadgeFromPage(mainWindow) {
+  if (mainWindow.isDestroyed()) return null;
+  if (!mainWindow.webContents.getURL().startsWith(ED_ORIGIN)) return null;
+
+  const raw = await mainWindow.webContents.executeJavaScript(
+    'sessionStorage.getItem("accounts")'
+  );
+  return messagerieBadgeFromStoredAccounts(raw);
+}
+
+// Source payante : une connexion dediee, seule capable de faire apparaitre
+// un nouveau message.
+//
+// Volontairement en dehors d'authFlow : sur un code 250, celui-ci effacerait
+// les cles fa et demanderait la question de double authentification. Un
+// rafraichissement de badge doit rester en lecture seule.
+async function readBadgeFromApi(deps) {
+  const { username, password, faKeys } = deps.credentialsStore.read();
+  if (!username || !password) return null;
+
+  const res = await deps.edApi.login({
+    identifiant: username,
+    motdepasse: password,
+    uuid: deps.credentialsStore.ensureDeviceUuid(),
+    fa: faKeys,
+  });
+
+  if (res.code !== 200) {
+    console.warn(`Rafraîchissement du badge : code ${res.code}, valeur conservée.`);
+    return null;
+  }
+
+  return messagerieBadgeCount({ accounts: (res.data && res.data.accounts) || [] });
+}
+
+// =========================
 // MAIN
 // =========================
 
@@ -415,6 +457,7 @@ async function main() {
   });
 
   const deps = {
+    edApi,
     authFlow: createAuthFlow({ edApi, credentialsStore }),
     credentialsStore,
     reloginGuard: createReloginGuard(),
@@ -458,7 +501,12 @@ async function main() {
     showAuthBanner(mainWindow, "AUTH_ECHOUEE");
   }
 
-  startBadgePolling(mainWindow.webContents, mainWindow);
+  startBadgePolling({
+    mainWindow,
+    readLocalCount: () => readBadgeFromPage(mainWindow),
+    refreshRemoteCount: () => readBadgeFromApi(deps),
+    initialCount: state ? messagerieBadgeCount(state) : 0,
+  });
   setupAutoUpdater(mainWindow);
 }
 

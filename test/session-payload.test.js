@@ -81,3 +81,55 @@ test("messagerieBadgeCount vaut 0 sans aucun compte", () => {
   const state = buildSessionState({ token: "T", data: { accounts: [] } }, 1);
   assert.equal(messagerieBadgeCount(state), 0);
 });
+
+// ---- Lecture du compteur dans le store de la page --------------------
+
+const { messagerieBadgeFromStoredAccounts } = require("../src/main/auth/session-payload");
+
+// Enveloppe telle que WebStorageService l'ecrit.
+function stored(modules) {
+  return JSON.stringify({
+    payload: { accounts: [{ id: 5618, typeCompte: "E", current: true, modules }] },
+    lastModified: 1756900000000,
+  });
+}
+
+test("lit le compteur dans l'enveloppe du sessionStorage", () => {
+  assert.equal(
+    messagerieBadgeFromStoredAccounts(stored([{ code: "MESSAGERIE", badge: 1 }])),
+    1
+  );
+});
+
+test("renvoie 0 quand la messagerie est a zero", () => {
+  assert.equal(
+    messagerieBadgeFromStoredAccounts(stored([{ code: "MESSAGERIE", badge: 0 }])),
+    0
+  );
+});
+
+test("renvoie 0 sans module messagerie, le compte existant", () => {
+  assert.equal(messagerieBadgeFromStoredAccounts(stored([{ code: "NOTES", badge: 3 }])), 0);
+});
+
+// null et non 0 : un echec de lecture ne doit jamais effacer le badge.
+test("renvoie null sur une valeur absente", () => {
+  assert.equal(messagerieBadgeFromStoredAccounts(null), null);
+  assert.equal(messagerieBadgeFromStoredAccounts(undefined), null);
+  assert.equal(messagerieBadgeFromStoredAccounts(""), null);
+});
+
+test("renvoie null sur du JSON invalide", () => {
+  assert.equal(messagerieBadgeFromStoredAccounts("pas du json"), null);
+});
+
+test("renvoie null sans enveloppe payload", () => {
+  assert.equal(messagerieBadgeFromStoredAccounts(JSON.stringify({ accounts: [] })), null);
+});
+
+test("renvoie null sur une liste de comptes vide", () => {
+  assert.equal(
+    messagerieBadgeFromStoredAccounts(JSON.stringify({ payload: { accounts: [] } })),
+    null
+  );
+});

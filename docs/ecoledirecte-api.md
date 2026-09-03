@@ -110,44 +110,80 @@ d'Angular, et le monde principal de la page relit exactement ce qu'il a
 
 C'est ce qui rend l'injection de session possible sans piloter le DOM.
 
-## Le badge est déjà dans la réponse de login
+## Le badge est dans la réponse de login, et nulle part ailleurs de fiable
 
 `accounts[].modules[]` contient `{ code, badge }`, dont
 `{ code: "MESSAGERIE", badge: N }` — la valeur qu'affiche la pastille du menu
-latéral. Inutile de scruter le DOM pour la valeur initiale.
+latéral. Le menu la lit d'ailleurs de là : `u.badge = Me.getBadgeNumber(e)`,
+où `e` est l'objet module.
 
-### Ce qui reste non vérifié sur le badge
+Le même chiffre reste lisible ensuite **sans aucune requête**, dans
+`sessionStorage["accounts"]`, enveloppe `{ payload, lastModified }` comprise.
+Vérifié dans la page réelle : `payload.accounts[0].modules[MESSAGERIE].badge`
+valait bien `1` avec un message non lu.
 
-Le compteur affiché en continu est en revanche relevé dans le DOM, et cette
-partie n'a **jamais pu être vérifiée sur une vraie notification** : le compte
-de test n'en a aucune, les quatre sélecteurs remontent donc systématiquement
-zéro élément.
+Ce store n'est cependant réécrit que quand le SPA se reconnecte de lui-même —
+pas quand un message est lu, et pas quand un nouveau arrive. C'est une source
+gratuite, pas une source fraîche.
 
-Ce qui est vérifié (`scripts/diag-badge.js`) :
+### Le `BadgesStore` du SPA est déclaré mais introuvable
 
-- **transport** — fabrication de l'image et pose de l'overlay, avec une
-  valeur en dur ;
-- **collecte** — les sélecteurs, en injectant de faux nœuds dans une page
-  vierge : un nœud `7` donne 7, deux nœuds `4` et `5` donnent 9, une page
-  vide donne 0 et retire l'overlay.
+Le bundle contient un store de badges dédié, bien plus fin, mis à jour à
+chaque action de l'utilisateur (`updateBadgeForModule` est appelé à la
+lecture d'un message, au marquage lu/non lu, à la suppression, au
+déplacement). Sa forme :
 
-Ce qui ne l'est pas : que ces sélecteurs correspondent au DOM réel
-d'ÉcoleDirecte quand une notification existe. Les sélecteurs concernés,
-essayés dans cet ordre :
-
-```
-#menuId-5618 > li:nth-child(5) > ed-menu-block-item > div > a > span.badge.alert-danger.ed-menu-badge
-span.badge.alert-danger.ed-menu-badge
-.badge.alert-danger
-.ed-menu-badge
+```js
+payload["<id><typeCompte>"]["<CODE_MODULE>"] = { valeur, iconApp }
+// exemple : payload["5618E"]["MESSAGERIE"] = { valeur: 1, iconApp: true }
 ```
 
-Le premier est particulièrement fragile : `menuId-5618` est un identifiant
-d'établissement, il ne vaudra pas la même chose ailleurs. Les trois suivants
-servent de repli.
+`calculBadgesIconApp(id, typeCompte)` somme les `valeur` des modules marqués
+`iconApp` : c'est le calcul du badge d'icône d'application fait par le site.
 
-À revérifier dès qu'une vraie notification est disponible. La valeur initiale,
-elle, vient de l'API et ne dépend d'aucun sélecteur.
+L'énumération des clés de stockage du SPA :
+
+```js
+{ CREDENTIALS: "credentials", ACCOUNTS: "accounts", ETABLISSEMENT: "etablissement",
+  FINANCES: "finances", PANIER: "panier", BADGES: "badges" }
+```
+
+**Mais `sessionStorage["badges"]` vaut `null`**, y compris après un passage
+sur la messagerie, là où `credentials` et `accounts` sont bien présents. Le
+champ de configuration s'appelle `idDBKey`, ce qui laisse penser à un autre
+support — IndexedDB. Non creusé : un store qu'on n'observe pas n'est pas une
+base fiable.
+
+### Une seconde connexion ne tue pas le jeton en place
+
+Vérifié par `scripts/diag-badge-api.js` sur le compte réel : après une
+seconde connexion, le jeton de la première répond toujours `x-code 200`. Les
+jetons sont différents, et les deux vivent.
+
+C'est ce qui autorise à rafraîchir le badge par un `login.awp` dédié sans
+casser la session de la page. Sans cette garantie, chaque rafraîchissement
+aurait déclenché la reprise sur session expirée, en boucle.
+
+### Ce qu'on ne peut pas faire : se greffer sur les réponses du site
+
+`webRequest.onHeadersReceived` donne les en-têtes, jamais le corps. Le
+compteur est dans le corps. Il n'y a donc pas moyen de récupérer le badge en
+observant le trafic que le SPA génère déjà ; d'où la connexion dédiée, espacée
+et bruitée (30 min ± 10), dans `features/badge.js`.
+
+### L'ancienne lecture DOM, et pourquoi elle a été retirée
+
+Le compteur était relevé par sélecteurs CSS, dont
+`#menuId-5618 > li:nth-child(5) > …` — l'identifiant élève d'un seul
+utilisateur, codé en dur. Aucun des quatre sélecteurs ne correspondait plus
+au DOM du site : la lecture renvoyait `0` et **effaçait** le compteur juste
+obtenu à la connexion, cinq secondes après l'avoir posé. Les journaux le
+montraient noir sur blanc : `[BADGE] Overlay applique` puis
+`[BADGE] Overlay supprime`, avec un message non lu bien réel.
+
+La règle qui en découle, et qui vaut pour toute lecture de compteur : **un
+échec de lecture vaut `null`, jamais `0`**, et `null` conserve la dernière
+valeur connue.
 
 ---
 
